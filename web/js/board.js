@@ -4,8 +4,10 @@
  */
 
 const BoardRenderer = (() => {
-    const HEX_SIZE = 55;
+    const DEFAULT_HEX_SIZE = 55;
     const SQRT3 = Math.sqrt(3);
+    let HEX_SIZE = DEFAULT_HEX_SIZE;
+    let numRings = 3;  // updated each render
 
     let svg = null;
     let hexGroup, edgeGroup, intersectionGroup, buildingGroup, labelGroup, robberGroup, portGroup;
@@ -115,6 +117,15 @@ const BoardRenderer = (() => {
         const intersections = boardState.intersections || {};
         const edges = boardState.edges || {};
 
+        // Compute ring count from hex positions to scale HEX_SIZE dynamically
+        numRings = 1;
+        for (const h of Object.values(hexes)) {
+            const ring = Math.max(Math.abs(h.q), Math.abs(-h.q - h.r), Math.abs(h.r));
+            if (ring + 1 > numRings) numRings = ring + 1;
+        }
+        // Scale hex size: keep 55 for standard (3 rings), shrink for larger boards
+        HEX_SIZE = Math.max(8, Math.round(DEFAULT_HEX_SIZE * 3 / numRings));
+
         // Build intersection pixel lookup from hex corners
         buildIntersectionPixels(boardState);
 
@@ -176,19 +187,23 @@ const BoardRenderer = (() => {
 
         hexGroup.appendChild(polygon);
 
-        // Number token
+        // Number token — scale sizes for large boards
         if (hex.number_token) {
+            const tokenRadius = Math.max(5, Math.round(18 * HEX_SIZE / DEFAULT_HEX_SIZE));
+            const tokenFontSize = Math.max(6, Math.round(16 * HEX_SIZE / DEFAULT_HEX_SIZE));
+
             // Background circle
             const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
             circle.setAttribute('cx', x);
             circle.setAttribute('cy', y);
-            circle.setAttribute('r', 18);
+            circle.setAttribute('r', tokenRadius);
             circle.classList.add('hex-number-bg');
             labelGroup.appendChild(circle);
 
             const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             text.setAttribute('x', x);
             text.setAttribute('y', y + 1);
+            text.setAttribute('font-size', tokenFontSize);
             text.textContent = hex.number_token;
             text.classList.add('hex-number');
             if (hex.number_token === 6 || hex.number_token === 8) {
@@ -196,35 +211,41 @@ const BoardRenderer = (() => {
             }
             labelGroup.appendChild(text);
 
-            // Probability dots
-            const dots = getDots(hex.number_token);
-            if (dots > 0) {
-                const dotsText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                dotsText.setAttribute('x', x);
-                dotsText.setAttribute('y', y + 14);
-                dotsText.setAttribute('text-anchor', 'middle');
-                dotsText.setAttribute('font-size', '7');
-                dotsText.setAttribute('fill', (hex.number_token === 6 || hex.number_token === 8) ? '#e74c3c' : '#bbb');
-                dotsText.textContent = '\u2022'.repeat(dots);
-                labelGroup.appendChild(dotsText);
+            // Probability dots — hide on large boards
+            if (numRings <= 6) {
+                const dots = getDots(hex.number_token);
+                if (dots > 0) {
+                    const dotsFontSize = Math.max(4, Math.round(7 * HEX_SIZE / DEFAULT_HEX_SIZE));
+                    const dotsText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    dotsText.setAttribute('x', x);
+                    dotsText.setAttribute('y', y + tokenRadius - 2);
+                    dotsText.setAttribute('text-anchor', 'middle');
+                    dotsText.setAttribute('font-size', dotsFontSize);
+                    dotsText.setAttribute('fill', (hex.number_token === 6 || hex.number_token === 8) ? '#e74c3c' : '#bbb');
+                    dotsText.textContent = '\u2022'.repeat(dots);
+                    labelGroup.appendChild(dotsText);
+                }
             }
         }
 
-        // Terrain label — with dark outline for readability
-        const terrainY = y - (hex.number_token ? 22 : 0);
-        const terrainLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        terrainLabel.setAttribute('x', x);
-        terrainLabel.setAttribute('y', terrainY);
-        terrainLabel.setAttribute('text-anchor', 'middle');
-        terrainLabel.setAttribute('font-size', '10');
-        terrainLabel.setAttribute('font-weight', 'bold');
-        terrainLabel.setAttribute('fill', 'white');
-        terrainLabel.setAttribute('stroke', 'rgba(0,0,0,0.7)');
-        terrainLabel.setAttribute('stroke-width', '3');
-        terrainLabel.setAttribute('paint-order', 'stroke');
-        terrainLabel.setAttribute('pointer-events', 'none');
-        terrainLabel.textContent = hex.terrain.charAt(0).toUpperCase() + hex.terrain.slice(1);
-        labelGroup.appendChild(terrainLabel);
+        // Terrain label — hide on large boards (>6 rings) for readability
+        if (numRings <= 6) {
+            const terrainY = y - (hex.number_token ? Math.round(22 * HEX_SIZE / DEFAULT_HEX_SIZE) : 0);
+            const terrainFontSize = Math.max(5, Math.round(10 * HEX_SIZE / DEFAULT_HEX_SIZE));
+            const terrainLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            terrainLabel.setAttribute('x', x);
+            terrainLabel.setAttribute('y', terrainY);
+            terrainLabel.setAttribute('text-anchor', 'middle');
+            terrainLabel.setAttribute('font-size', terrainFontSize);
+            terrainLabel.setAttribute('font-weight', 'bold');
+            terrainLabel.setAttribute('fill', 'white');
+            terrainLabel.setAttribute('stroke', 'rgba(0,0,0,0.7)');
+            terrainLabel.setAttribute('stroke-width', '3');
+            terrainLabel.setAttribute('paint-order', 'stroke');
+            terrainLabel.setAttribute('pointer-events', 'none');
+            terrainLabel.textContent = hex.terrain.charAt(0).toUpperCase() + hex.terrain.slice(1);
+            labelGroup.appendChild(terrainLabel);
+        }
     }
 
     function getDots(num) {
@@ -276,11 +297,12 @@ const BoardRenderer = (() => {
                 }
             }
         } else {
-            // Draw clickable empty intersection
+            // Draw clickable empty intersection — scale radius for board size
+            const iRadius = Math.max(2, Math.round(7 * HEX_SIZE / DEFAULT_HEX_SIZE));
             const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
             circle.setAttribute('cx', x);
             circle.setAttribute('cy', y);
-            circle.setAttribute('r', 7);
+            circle.setAttribute('r', iRadius);
             circle.classList.add('intersection');
             circle.dataset.intersectionId = iid;
 
@@ -294,25 +316,28 @@ const BoardRenderer = (() => {
 
     function drawBuilding(x, y, building) {
         const color = building.player || '#fff';
+        const scale = HEX_SIZE / DEFAULT_HEX_SIZE;
 
         if (building.type === 'city') {
-            // City = larger square
+            // City = larger square — scaled
+            const half = Math.max(4, Math.round(9 * scale));
             const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-            rect.setAttribute('x', x - 9);
-            rect.setAttribute('y', y - 9);
-            rect.setAttribute('width', 18);
-            rect.setAttribute('height', 18);
-            rect.setAttribute('rx', 3);
+            rect.setAttribute('x', x - half);
+            rect.setAttribute('y', y - half);
+            rect.setAttribute('width', half * 2);
+            rect.setAttribute('height', half * 2);
+            rect.setAttribute('rx', Math.max(1, Math.round(3 * scale)));
             rect.setAttribute('fill', color);
             rect.classList.add('building-city');
             buildingGroup.appendChild(rect);
             return rect;
         } else {
-            // Settlement = circle
+            // Settlement = circle — scaled
+            const r = Math.max(3, Math.round(8 * scale));
             const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
             circle.setAttribute('cx', x);
             circle.setAttribute('cy', y);
-            circle.setAttribute('r', 8);
+            circle.setAttribute('r', r);
             circle.setAttribute('fill', color);
             circle.classList.add('building-settlement');
             buildingGroup.appendChild(circle);
@@ -322,33 +347,40 @@ const BoardRenderer = (() => {
 
     function drawRobber(hex) {
         const { x, y } = hexToPixel(hex.q, hex.r);
+        const scale = HEX_SIZE / DEFAULT_HEX_SIZE;
 
-        // Robber body
+        // Robber body — scaled
         const body = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
-        body.setAttribute('cx', x + 20);
-        body.setAttribute('cy', y + 15);
-        body.setAttribute('rx', 8);
-        body.setAttribute('ry', 12);
+        body.setAttribute('cx', x + Math.round(20 * scale));
+        body.setAttribute('cy', y + Math.round(15 * scale));
+        body.setAttribute('rx', Math.max(3, Math.round(8 * scale)));
+        body.setAttribute('ry', Math.max(4, Math.round(12 * scale)));
         body.classList.add('robber');
         robberGroup.appendChild(body);
 
-        // Robber head
+        // Robber head — scaled
         const head = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        head.setAttribute('cx', x + 20);
-        head.setAttribute('cy', y + 1);
-        head.setAttribute('r', 6);
+        head.setAttribute('cx', x + Math.round(20 * scale));
+        head.setAttribute('cy', y + Math.round(1 * scale));
+        head.setAttribute('r', Math.max(2, Math.round(6 * scale)));
         head.classList.add('robber');
         robberGroup.appendChild(head);
     }
 
     function drawPort(iid, inter, config) {
+        // Hide port labels on very large boards (>8 rings)
+        if (numRings > 8) return;
+
         const { x, y } = intersectionToPixel(inter.q, inter.r, parseInt(iid));
         const portConfig = config.port_types ? config.port_types[inter.port] : null;
         if (!portConfig) return;
 
+        const scale = HEX_SIZE / DEFAULT_HEX_SIZE;
+        const portFontSize = Math.max(5, Math.round(11 * scale));
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.setAttribute('x', x);
-        text.setAttribute('y', y - 16);
+        text.setAttribute('y', y - Math.round(16 * scale));
+        text.setAttribute('font-size', portFontSize);
         text.classList.add('port-indicator');
         const label = portConfig.resource
             ? `${portConfig.ratio}:1 ${portConfig.resource.charAt(0).toUpperCase() + portConfig.resource.slice(1, 3)}`

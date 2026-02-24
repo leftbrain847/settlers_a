@@ -155,6 +155,37 @@ body {
     font-size: 0.9em;
 }
 
+.setting-group input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+}
+
+.setting-group input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent2);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+}
+
+.setting-group input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent2);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+}
+
 .setting-group input[type="checkbox"] {
     accent-color: var(--accent2);
 }

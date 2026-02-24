@@ -20,6 +20,17 @@
         arrow.classList.toggle('open', !visible);
     });
 
+    // Board rings slider — live hex count display
+    const ringsSlider = document.getElementById('setting-rings');
+    const ringsLabel = document.getElementById('rings-label');
+    function updateRingsLabel() {
+        const n = parseInt(ringsSlider.value);
+        const hexCount = 3 * n * (n - 1) + 1;
+        ringsLabel.textContent = `${n} rings — ${hexCount} hexes`;
+    }
+    ringsSlider.addEventListener('input', updateRingsLabel);
+    updateRingsLabel();
+
     let isHost = false;
 
     // Helper: build a shareable join URL

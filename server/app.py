@@ -66,6 +66,58 @@ manager = GameManager()
 
 
 # ---------------------------------------------------------------------------
+# Dynamic board sizing — generates terrain, tokens, and ports for any ring count
+# ---------------------------------------------------------------------------
+
+def _apply_board_size(config: GameConfig, num_rings: int):
+    """Configure terrain counts, number tokens, and ports for an arbitrary board size."""
+    import math
+
+    total_hexes = 3 * num_rings * (num_rings - 1) + 1
+
+    # Desert count: ~1 per 19 hexes, minimum 1
+    num_deserts = max(1, total_hexes // 19)
+    producing_hexes = total_hexes - num_deserts
+
+    # Distribute producing terrains evenly across 5 types
+    terrains = ["hills", "forest", "mountains", "fields", "pasture"]
+    base_count = producing_hexes // len(terrains)
+    remainder = producing_hexes % len(terrains)
+    terrain_counts = {}
+    for i, t in enumerate(terrains):
+        terrain_counts[t] = base_count + (1 if i < remainder else 0)
+    terrain_counts["desert"] = num_deserts
+
+    config.board_template.terrain_counts = terrain_counts
+
+    # Number tokens: repeat the standard 2-12 distribution to cover all producing hexes
+    standard_tokens = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12]
+    tokens = []
+    while len(tokens) < producing_hexes:
+        tokens.extend(standard_tokens)
+    config.board_template.number_tokens = tokens[:producing_hexes]
+
+    # Ports: scale proportionally to board size
+    # Standard board (19 hexes) has 9 ports total
+    base_total_ports = 9
+    scale_factor = total_hexes / 19.0
+    target_ports = max(3, round(base_total_ports * scale_factor))
+
+    # Keep the same port type ratio: 4 generic + 5 specific = 9
+    # Generic = ~44%, each specific = ~11%
+    num_generic = max(1, round(target_ports * 4 / 9))
+    remaining = target_ports - num_generic
+    specific_ports = ["brick_port", "lumber_port", "ore_port", "grain_port", "wool_port"]
+    per_specific = max(1, remaining // len(specific_ports))
+
+    port_counts = {"generic": num_generic}
+    for sp in specific_ports:
+        port_counts[sp] = per_specific
+
+    config.board_template.port_counts = port_counts
+
+
+# ---------------------------------------------------------------------------
 # REST API
 # ---------------------------------------------------------------------------
 
@@ -81,17 +133,12 @@ async def create_game(body: dict = None):
         vp = int(settings["vp_to_win"])
         config.win_conditions = [WinCondition(type="vp_threshold", params={"threshold": vp})]
 
-    if settings.get("board_rings") and int(settings["board_rings"]) != 3:
+    if settings.get("board_rings"):
         rings = int(settings["board_rings"])
         config.board_template.num_rings = rings
-        # Adjust terrain counts for smaller/larger boards
-        if rings == 2:
-            config.board_template.terrain_counts = {
-                "hills": 1, "forest": 2, "mountains": 1,
-                "fields": 1, "pasture": 1, "desert": 1,
-            }
-            config.board_template.number_tokens = [3, 4, 5, 6, 8, 9]
-            config.board_template.port_counts = {"generic": 2, "brick_port": 1, "lumber_port": 1}
+        # Dynamically generate terrain, tokens, and ports for any ring count
+        if rings != 3:
+            _apply_board_size(config, rings)
 
     if settings.get("friendly_robber"):
         config.robber.friendly_turns = 3  # store for engine to use
