@@ -172,6 +172,7 @@ class SmartStrategy(AIStrategy):
 
     def __init__(self):
         self._fallback = RandomStrategy()
+        self._offered_trade_this_turn = False
 
     def choose_action(self, engine: GameEngine, player_id: str) -> Optional[Action]:
         legal = engine.get_legal_actions(player_id)
@@ -181,6 +182,10 @@ class SmartStrategy(AIStrategy):
         by_type: dict[str, list] = {}
         for a in legal:
             by_type.setdefault(a["type"], []).append(a)
+
+        # Reset trade flag at start of turn
+        if "roll_dice" in by_type:
+            self._offered_trade_this_turn = False
 
         # Must-do actions first (forced moves)
         for must_do in ("roll_dice", "move_robber", "steal", "discard", "dev_card_action"):
@@ -257,6 +262,13 @@ class SmartStrategy(AIStrategy):
             chosen = self._choose_road(engine, player_id, roads)
             if chosen:
                 return self._fallback._legal_to_action(chosen, player_id)
+
+        # Try a player trade before ending turn (once per turn)
+        if "trade_offer" in by_type and not self._offered_trade_this_turn:
+            trade = self._choose_player_trade(engine, player_id)
+            if trade:
+                self._offered_trade_this_turn = True
+                return Action(type="trade_offer", player_id=player_id, params=trade)
 
         # End turn
         if "end_turn" in by_type:
@@ -418,6 +430,52 @@ class SmartStrategy(AIStrategy):
             for t in trades:
                 if player.resources.get(t["give_resource"], 0) >= 5:
                     return t
+
+        return None
+
+    def _choose_player_trade(self, engine: GameEngine, player_id: str) -> Optional[dict]:
+        """Construct a player trade offer: give surplus resource for a needed one.
+
+        Returns {"offering": {res: count}, "requesting": {res: count}} or None.
+        """
+        player = engine.state.get_player(player_id)
+        settlement_count = player.buildings_placed.get("settlement", 0)
+        city_count = player.buildings_placed.get("city", 0)
+
+        # Build goals (same priority as bank trade)
+        goals = []
+        if settlement_count > 0:
+            goals.append({"rock": 3, "wheat": 2})
+        if settlement_count + city_count < 5:
+            goals.append({"clay": 1, "wood": 1, "wheat": 1, "sheep": 1})
+        goals.append({"clay": 1, "wood": 1})
+        goals.append({"rock": 1, "wheat": 1, "sheep": 1})
+
+        for goal in goals:
+            missing = {}
+            surplus = {}
+            for res in engine.config.resource_types:
+                have = player.resources.get(res, 0)
+                need = goal.get(res, 0)
+                if need > have:
+                    missing[res] = need - have
+                elif have > need + 1:
+                    surplus[res] = have - need - 1  # keep 1 extra
+
+            if not missing or not surplus:
+                continue
+
+            # Pick the most-needed resource and the most-surplus resource
+            want_res = max(missing, key=missing.get)
+            give_res = max(surplus, key=surplus.get)
+            if give_res == want_res:
+                continue
+
+            # Offer 1:1 trade
+            return {
+                "offering": {give_res: 1},
+                "requesting": {want_res: 1},
+            }
 
         return None
 

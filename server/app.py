@@ -512,6 +512,25 @@ async def run_ai_turns(game_id: str):
 
         await broadcast_state(game_id)
 
+        # After a bot offers a trade, let other bots respond and give humans
+        # a chance to see it before continuing
+        if action.type == "trade_offer":
+            await handle_ai_trade_responses(game_id)
+            # Give human players time to respond to the trade offer
+            has_humans = any(
+                not manager.is_ai(game_id, pid) for pid in engine.state.player_order
+                if pid != current
+            )
+            if has_humans and engine.state.trade_offers:
+                await asyncio.sleep(3)
+            # Cancel any unclaimed trade offers from this bot
+            for tid in list(engine.state.trade_offers.keys()):
+                offer = engine.state.trade_offers.get(tid)
+                if offer and offer.from_player == current:
+                    del engine.state.trade_offers[tid]
+            await broadcast_state(game_id)
+            continue
+
         # Longer delay for visible actions so human can follow
         if action.type in ("roll_dice", "build", "end_turn", "buy_dev_card", "play_dev_card"):
             await asyncio.sleep(0.8)
