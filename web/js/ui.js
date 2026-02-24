@@ -20,6 +20,30 @@
         arrow.classList.toggle('open', !visible);
     });
 
+    // Reset to defaults button
+    document.getElementById('btn-reset-defaults').addEventListener('click', () => {
+        document.getElementById('setting-vp').value = 10;
+        document.getElementById('setting-rings').value = 3;
+        document.getElementById('setting-starting-res').value = 'none';
+        document.getElementById('setting-friendly-robber').checked = false;
+        document.getElementById('setting-discard-threshold').value = 7;
+        document.getElementById('setting-max-roads').value = 15;
+        document.getElementById('setting-max-settlements').value = 5;
+        document.getElementById('setting-max-cities').value = 4;
+        document.getElementById('setting-dev-knight').value = 14;
+        document.getElementById('setting-dev-road-building').value = 2;
+        document.getElementById('setting-dev-year-of-plenty').value = 2;
+        document.getElementById('setting-dev-monopoly').value = 2;
+        document.getElementById('setting-dev-victory-point').value = 5;
+        document.getElementById('setting-port-generic').value = 4;
+        document.getElementById('setting-port-brick').value = 1;
+        document.getElementById('setting-port-lumber').value = 1;
+        document.getElementById('setting-port-ore').value = 1;
+        document.getElementById('setting-port-grain').value = 1;
+        document.getElementById('setting-port-wool').value = 1;
+        updateRingsLabel();
+    });
+
     // Board rings slider — live hex count display
     const ringsSlider = document.getElementById('setting-rings');
     const ringsLabel = document.getElementById('rings-label');
@@ -1050,7 +1074,7 @@
         const want = {};
 
         function renderCards() {
-            // Give side — show your resources as clickable colored cards
+            // Give side — show your resources with +/- buttons
             const giveCards = document.getElementById('trade-give-cards');
             giveCards.innerHTML = '';
             for (const res of resources) {
@@ -1063,26 +1087,15 @@
                     <div class="res-count">${selected}</div>
                     <div class="res-name">${res}</div>
                     <div class="res-have">(${have})</div>
+                    <div class="trade-pm-btns">
+                        <button class="trade-pm-btn minus" data-res="${res}" data-side="give">&#x2212;</button>
+                        <button class="trade-pm-btn plus" data-res="${res}" data-side="give">+</button>
+                    </div>
                 `;
-                card.addEventListener('click', (e) => {
-                    if (e.shiftKey && (give[res] || 0) > 0) {
-                        give[res] = (give[res] || 0) - 1;
-                    } else if ((give[res] || 0) < have) {
-                        give[res] = (give[res] || 0) + 1;
-                    }
-                    renderCards();
-                });
-                card.addEventListener('contextmenu', (e) => {
-                    e.preventDefault();
-                    if ((give[res] || 0) > 0) {
-                        give[res] = (give[res] || 0) - 1;
-                        renderCards();
-                    }
-                });
                 giveCards.appendChild(card);
             }
 
-            // Want side
+            // Want side — show resources with +/- buttons
             const wantCards = document.getElementById('trade-want-cards');
             wantCards.innerHTML = '';
             for (const res of resources) {
@@ -1093,24 +1106,32 @@
                 card.innerHTML = `
                     <div class="res-count">${selected}</div>
                     <div class="res-name">${res}</div>
+                    <div class="trade-pm-btns">
+                        <button class="trade-pm-btn minus" data-res="${res}" data-side="want">&#x2212;</button>
+                        <button class="trade-pm-btn plus" data-res="${res}" data-side="want">+</button>
+                    </div>
                 `;
-                card.addEventListener('click', (e) => {
-                    if (e.shiftKey && (want[res] || 0) > 0) {
-                        want[res] = (want[res] || 0) - 1;
+                wantCards.appendChild(card);
+            }
+
+            // Attach +/- button listeners
+            document.querySelectorAll('.trade-pm-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const r = btn.dataset.res;
+                    const side = btn.dataset.side;
+                    const isPlus = btn.classList.contains('plus');
+                    if (side === 'give') {
+                        const have = me.resources[r] || 0;
+                        if (isPlus && (give[r] || 0) < have) give[r] = (give[r] || 0) + 1;
+                        else if (!isPlus && (give[r] || 0) > 0) give[r] = (give[r] || 0) - 1;
                     } else {
-                        want[res] = (want[res] || 0) + 1;
+                        if (isPlus) want[r] = (want[r] || 0) + 1;
+                        else if (!isPlus && (want[r] || 0) > 0) want[r] = (want[r] || 0) - 1;
                     }
                     renderCards();
                 });
-                card.addEventListener('contextmenu', (e) => {
-                    e.preventDefault();
-                    if ((want[res] || 0) > 0) {
-                        want[res] = (want[res] || 0) - 1;
-                        renderCards();
-                    }
-                });
-                wantCards.appendChild(card);
-            }
+            });
 
             // Summaries
             const giveSummary = Object.entries(give).filter(([, v]) => v > 0).map(([r, c]) => `${c} ${r}`).join(', ');
@@ -1144,11 +1165,25 @@
         const modal = document.getElementById('incoming-trade-modal');
         const display = document.getElementById('incoming-trade-display');
         const offerer = state.players[offer.from_player];
+        const me = state.players[Game.getPlayerId()];
 
         function resChips(obj) {
             return Object.entries(obj).filter(([, c]) => c > 0).map(([r, c]) =>
                 `<span class="res-chip" style="color:${resColors[r] || 'var(--text)'}">${c} ${r}</span>`
             ).join('');
+        }
+
+        // Check if player can afford the trade
+        let canAfford = true;
+        let missingText = '';
+        if (me && me.resources) {
+            for (const [res, amount] of Object.entries(offer.requesting)) {
+                if ((me.resources[res] || 0) < amount) {
+                    canAfford = false;
+                    const deficit = amount - (me.resources[res] || 0);
+                    missingText += `${deficit} ${res} `;
+                }
+            }
         }
 
         display.innerHTML = `
@@ -1161,11 +1196,14 @@
                 <div class="label">You give</div>
                 <div class="resources">${resChips(offer.requesting)}</div>
             </div>
+            ${!canAfford ? `<div style="color:var(--accent);font-size:0.85em;text-align:center;margin-top:8px;">You don't have enough resources (need ${missingText.trim()})</div>` : ''}
         `;
 
         modal.classList.add('active');
 
-        document.getElementById('btn-accept-trade').onclick = () => {
+        const acceptBtn = document.getElementById('btn-accept-trade');
+        acceptBtn.disabled = !canAfford;
+        acceptBtn.onclick = () => {
             Game.tradeAccept(tradeId);
             modal.classList.remove('active');
         };
