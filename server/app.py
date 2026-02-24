@@ -324,6 +324,19 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str)
             "terrain_types": {k: {"id": v.id, "name": v.name, "color": v.color, "produces": v.produces} for k, v in engine.config.terrain_types.items()},
             "building_types": {k: {"id": v.id, "name": v.name, "cost": v.cost, "vp": v.vp, "max_per_player": v.max_per_player} for k, v in engine.config.building_types.items()},
             "port_types": {k: {"id": v.id, "name": v.name, "ratio": v.ratio, "resource": v.resource} for k, v in engine.config.port_types.items()},
+            "dev_card_types": {k: {"id": v.id, "name": v.name, "count_in_deck": v.count_in_deck} for k, v in engine.config.dev_card_types.items()},
+            "win_conditions": [{"type": wc.type, "params": wc.params} for wc in engine.config.win_conditions],
+            "board_template": {
+                "num_rings": engine.config.board_template.num_rings,
+                "port_counts": engine.config.board_template.port_counts,
+            },
+            "robber": {
+                "discard_threshold": engine.config.robber.discard_threshold,
+                "enabled": engine.config.robber.enabled,
+            },
+            "trade_rules": {
+                "default_bank_ratio": engine.config.trade_rules.default_bank_ratio,
+            },
         }
         await websocket.send_json({"type": "init", "state": state, "config": config_data, "legal_actions": legal})
 
