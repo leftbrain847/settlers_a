@@ -150,6 +150,10 @@ class TradeRules:
     default_bank_ratio: int = 4      # 4:1 without a port
     # Whether counter-offers are allowed in player trading
     counter_offers: bool = True
+    # Seconds to wait for human responses before bots respond
+    trade_timer: int = 10
+    # Extra seconds added when a counter-offer is made
+    counter_timer: int = 10
 
 
 # ---------------------------------------------------------------------------

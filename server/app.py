@@ -169,6 +169,12 @@ async def create_game(body: dict = None):
             k: int(v) for k, v in port_counts_setting.items()
         }
 
+    # Trade timers
+    if "trade_timer" in settings:
+        config.trade_rules.trade_timer = int(settings["trade_timer"])
+    if "counter_timer" in settings:
+        config.trade_rules.counter_timer = int(settings["counter_timer"])
+
     engine = manager.create_game(config)
     manager.game_settings[engine.state.game_id] = settings
 
@@ -336,6 +342,8 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str)
             },
             "trade_rules": {
                 "default_bank_ratio": engine.config.trade_rules.default_bank_ratio,
+                "trade_timer": engine.config.trade_rules.trade_timer,
+                "counter_timer": engine.config.trade_rules.counter_timer,
             },
         }
         await websocket.send_json({"type": "init", "state": state, "config": config_data, "legal_actions": legal})
@@ -356,7 +364,7 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str)
                     await broadcast_state(game_id)
                     # Let AI bots respond to trade offers
                     if data["action_type"] == "trade_offer":
-                        await handle_ai_trade_responses(game_id)
+                        asyncio.create_task(handle_ai_trade_responses(game_id))
                     await run_ai_turns(game_id)
                 else:
                     await websocket.send_json({"type": "error", "message": result.error})
@@ -414,15 +422,17 @@ async def broadcast_state(game_id: str):
 # AI turn execution
 # ---------------------------------------------------------------------------
 
-async def handle_ai_trade_responses(game_id: str, delay_for_humans: bool = True):
+async def handle_ai_trade_responses(game_id: str):
     """Let AI players evaluate and respond to active trade offers.
 
-    If delay_for_humans is True, waits before bot responses to give human
-    players a chance to respond first.
+    Waits for the configurable trade_timer before bots respond, giving
+    human players a chance to respond first. Runs as a background task.
     """
     engine = manager.get_game(game_id)
     if not engine:
         return
+
+    trade_timer = engine.config.trade_rules.trade_timer
 
     # Check if there are human players (other than the offerer)
     has_humans = False
@@ -433,8 +443,8 @@ async def handle_ai_trade_responses(game_id: str, delay_for_humans: bool = True)
                 break
 
     # Wait for humans to see and respond first
-    if has_humans and delay_for_humans:
-        await asyncio.sleep(5)
+    if has_humans:
+        await asyncio.sleep(trade_timer)
 
     # Now let bots respond to any remaining trade offers
     for tid, offer in list(engine.state.trade_offers.items()):
@@ -445,17 +455,24 @@ async def handle_ai_trade_responses(game_id: str, delay_for_humans: bool = True)
                 continue
             if not manager.is_ai(game_id, pid):
                 continue
+            # Skip if bot already responded
+            if pid in offer.responses:
+                continue
             strategy = manager.ai_players[game_id][pid]
             if strategy.evaluate_trade(engine, pid, offer.offering, offer.requesting, offer.from_player):
-                action = Action(type="trade_accept", player_id=pid,
-                              params={"trade_id": tid})
-                result = engine.do_action(action)
+                # Bot responds with "accept"
+                respond_action = Action(type="trade_respond", player_id=pid,
+                                       params={"trade_id": tid, "response": "accept"})
+                result = engine.do_action(respond_action)
                 if result.success:
                     await broadcast_state(game_id)
-                    await asyncio.sleep(0.5)
-                break  # Trade completed, move on
+                    await asyncio.sleep(0.8)
             else:
-                # Bot doesn't want to accept — try a counter-offer (once)
+                # Bot responds with "decline"
+                respond_action = Action(type="trade_respond", player_id=pid,
+                                       params={"trade_id": tid, "response": "decline"})
+                engine.do_action(respond_action)
+                # Try a counter-offer
                 counter = strategy.generate_counter_offer(
                     engine, pid, offer.offering, offer.requesting, offer.from_player)
                 if counter:
@@ -463,8 +480,15 @@ async def handle_ai_trade_responses(game_id: str, delay_for_humans: bool = True)
                                           params=counter)
                     result = engine.do_action(counter_action)
                     if result.success:
+                        # Link the counter-offer to the original
+                        new_tid = list(engine.state.trade_offers.keys())[-1]
+                        offer.counter_ids.append(new_tid)
+                        offer.responses[pid] = "countered"
                         await broadcast_state(game_id)
                         await asyncio.sleep(1)
+                else:
+                    await broadcast_state(game_id)
+                    await asyncio.sleep(0.5)
 
 
 async def run_ai_turns(game_id: str):

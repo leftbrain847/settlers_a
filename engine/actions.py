@@ -347,12 +347,20 @@ def validate_trade_bank(state: GameState, config: GameConfig, action: Action) ->
 def validate_trade_offer(state: GameState, config: GameConfig, action: Action) -> tuple[bool, str]:
     if state.phase != GamePhase.PLAYING:
         return False, "Game is not in playing phase"
-    if action.player_id != state.current_player_id:
-        return False, "Not your turn"
-    if not state.dice_rolled:
-        return False, "Must roll dice first"
     if not config.trade_rules.player_trading_enabled:
         return False, "Player trading is disabled"
+
+    # Non-current players can make counter-offers if there are active trades
+    if action.player_id != state.current_player_id:
+        has_active_trade = any(
+            o.from_player == state.current_player_id
+            for o in state.trade_offers.values()
+        )
+        if not has_active_trade:
+            return False, "Not your turn"
+    else:
+        if not state.dice_rolled:
+            return False, "Must roll dice first"
 
     offering = action.params.get("offering", {})
     requesting = action.params.get("requesting", {})
@@ -367,8 +375,9 @@ def validate_trade_offer(state: GameState, config: GameConfig, action: Action) -
     return True, ""
 
 
-@validator("trade_accept")
-def validate_trade_accept(state: GameState, config: GameConfig, action: Action) -> tuple[bool, str]:
+@validator("trade_respond")
+def validate_trade_respond(state: GameState, config: GameConfig, action: Action) -> tuple[bool, str]:
+    """Validate a player's response (accept/decline) to a trade offer."""
     if state.phase != GamePhase.PLAYING:
         return False, "Game is not in playing phase"
 
@@ -377,10 +386,47 @@ def validate_trade_accept(state: GameState, config: GameConfig, action: Action) 
     if not offer:
         return False, "Trade offer not found"
     if action.player_id == offer.from_player:
-        return False, "Cannot accept your own trade"
+        return False, "Cannot respond to your own trade"
+
+    response = action.params.get("response")
+    if response not in ("accept", "decline"):
+        return False, "Response must be 'accept' or 'decline'"
+
+    # If accepting, check resources
+    if response == "accept":
+        player = state.get_player(action.player_id)
+        for res_id, amount in offer.requesting.items():
+            if player.resources.get(res_id, 0) < amount:
+                return False, f"Not enough {res_id}"
+
+    return True, ""
+
+
+@validator("trade_accept")
+def validate_trade_accept(state: GameState, config: GameConfig, action: Action) -> tuple[bool, str]:
+    """Validate the offerer finalizing a trade with a specific player."""
+    if state.phase != GamePhase.PLAYING:
+        return False, "Game is not in playing phase"
+
+    trade_id = action.params.get("trade_id")
+    offer = state.trade_offers.get(trade_id)
+    if not offer:
+        return False, "Trade offer not found"
+
+    accepter_id = action.params.get("accepter_id")
+
+    # Legacy: if no accepter_id, the caller IS the accepter (backwards compat for bots)
+    if not accepter_id:
+        if action.player_id == offer.from_player:
+            return False, "Must specify accepter_id"
+        accepter_id = action.player_id
+
+    # Only the offerer or the accepter themselves can finalize
+    if action.player_id != offer.from_player and action.player_id != accepter_id:
+        return False, "Only the trade offerer or accepter can finalize"
 
     # Check that acceptor has the requested resources
-    player = state.get_player(action.player_id)
+    player = state.get_player(accepter_id)
     for res_id, amount in offer.requesting.items():
         if player.resources.get(res_id, 0) < amount:
             return False, f"Not enough {res_id}"

@@ -383,10 +383,10 @@ class GameEngine:
             return legal
 
         if player_id != self.state.current_player_id:
-            # Other players can only respond to trade offers
+            # Other players can respond to trade offers
             for tid, offer in self.state.trade_offers.items():
-                if offer.from_player != player_id:
-                    legal.append({"type": "trade_accept", "trade_id": tid})
+                if offer.from_player != player_id and player_id not in offer.responses:
+                    legal.append({"type": "trade_respond", "trade_id": tid})
             return legal
 
         # Pending robber
@@ -527,6 +527,12 @@ class GameEngine:
         # Player trading
         if self.config.trade_rules.player_trading_enabled:
             legal.append({"type": "trade_offer"})
+            # Show trade_accept for offers where someone has accepted
+            for tid, offer in self.state.trade_offers.items():
+                if offer.from_player == player_id:
+                    for responder, response in offer.responses.items():
+                        if response == "accepted":
+                            legal.append({"type": "trade_accept", "trade_id": tid, "accepter_id": responder})
 
         # Dev cards (can't play cards bought this turn)
         if not player.has_played_dev_card_this_turn:
@@ -664,6 +670,8 @@ class GameEngine:
             tid: {
                 "id": t.id, "from_player": t.from_player,
                 "offering": t.offering, "requesting": t.requesting,
+                "responses": t.responses,
+                "counter_ids": t.counter_ids,
             } for tid, t in s.trade_offers.items()
         }
 

@@ -100,10 +100,10 @@ class TradeOffer:
     offering: dict[str, int] = field(default_factory=dict)
     # What the offering player wants: resource_id -> count
     requesting: dict[str, int] = field(default_factory=dict)
-    # Player ids that have accepted
-    accepted_by: list[str] = field(default_factory=list)
-    # Player ids that have declined
-    declined_by: list[str] = field(default_factory=list)
+    # Responses: player_id -> "accepted" | "declined" | "countered"
+    responses: dict[str, str] = field(default_factory=dict)
+    # Counter-offer trade_ids linked to this offer
+    counter_ids: list[str] = field(default_factory=list)
 
 
 @dataclass

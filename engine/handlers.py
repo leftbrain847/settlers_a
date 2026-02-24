@@ -429,15 +429,30 @@ def handle_trade_offer(state: GameState, config: GameConfig, player_id: str,
     return [{"type": "trade_offered", "player": player_id, "trade_id": trade_id, "offer": params}]
 
 
+@handler("trade_respond")
+def handle_trade_respond(state: GameState, config: GameConfig, player_id: str,
+                         params: dict[str, Any]) -> list[dict[str, Any]]:
+    """Record a player's response to a trade offer (accept/decline)."""
+    trade_id = params["trade_id"]
+    response = params["response"]
+    offer = state.trade_offers[trade_id]
+    offer.responses[player_id] = response
+    state.add_log("trade_respond", player=player_id, trade_id=trade_id, response=response)
+    return [{"type": "trade_response", "player": player_id, "trade_id": trade_id, "response": response}]
+
+
 @handler("trade_accept")
 def handle_trade_accept(state: GameState, config: GameConfig, player_id: str,
                         params: dict[str, Any]) -> list[dict[str, Any]]:
+    """Finalize a trade between the offerer and an accepter."""
     events = []
     trade_id = params["trade_id"]
     offer = state.trade_offers[trade_id]
 
+    # Determine the accepter: explicitly specified, or the caller themselves (legacy)
+    accepter_id = params.get("accepter_id") or player_id
     offerer = state.get_player(offer.from_player)
-    accepter = state.get_player(player_id)
+    accepter = state.get_player(accepter_id)
 
     # Swap resources
     for res_id, amount in offer.offering.items():
@@ -447,11 +462,13 @@ def handle_trade_accept(state: GameState, config: GameConfig, player_id: str,
         accepter.resources[res_id] -= amount
         offerer.resources[res_id] = offerer.resources.get(res_id, 0) + amount
 
-    # Remove the trade offer
+    # Remove the trade offer (and any counter-offers linked to it)
+    for cid in offer.counter_ids:
+        state.trade_offers.pop(cid, None)
     del state.trade_offers[trade_id]
 
-    events.append({"type": "trade_completed", "from": offer.from_player, "to": player_id, "trade_id": trade_id})
-    state.add_log("trade_accept", player=player_id, from_player=offer.from_player, trade_id=trade_id)
+    events.append({"type": "trade_completed", "from": offer.from_player, "to": accepter_id, "trade_id": trade_id})
+    state.add_log("trade_accept", player=accepter_id, from_player=offer.from_player, trade_id=trade_id)
     return events
 
 
