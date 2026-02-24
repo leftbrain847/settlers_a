@@ -401,16 +401,32 @@ async def broadcast_state(game_id: str):
 # AI turn execution
 # ---------------------------------------------------------------------------
 
-async def handle_ai_trade_responses(game_id: str):
-    """Let AI players evaluate and respond to active trade offers."""
+async def handle_ai_trade_responses(game_id: str, delay_for_humans: bool = True):
+    """Let AI players evaluate and respond to active trade offers.
+
+    If delay_for_humans is True, waits before bot responses to give human
+    players a chance to respond first.
+    """
     engine = manager.get_game(game_id)
     if not engine:
         return
 
-    # Copy trade offers since accepting modifies the dict
+    # Check if there are human players (other than the offerer)
+    has_humans = False
+    for tid, offer in list(engine.state.trade_offers.items()):
+        for pid in engine.state.player_order:
+            if pid != offer.from_player and not manager.is_ai(game_id, pid):
+                has_humans = True
+                break
+
+    # Wait for humans to see and respond first
+    if has_humans and delay_for_humans:
+        await asyncio.sleep(5)
+
+    # Now let bots respond to any remaining trade offers
     for tid, offer in list(engine.state.trade_offers.items()):
         if tid not in engine.state.trade_offers:
-            continue  # Already resolved
+            continue  # Already resolved by a human
         for pid in engine.state.player_order:
             if pid == offer.from_player:
                 continue
@@ -512,17 +528,9 @@ async def run_ai_turns(game_id: str):
 
         await broadcast_state(game_id)
 
-        # After a bot offers a trade, let other bots respond and give humans
-        # a chance to see it before continuing
+        # After a bot offers a trade, give humans time then let bots respond
         if action.type == "trade_offer":
-            await handle_ai_trade_responses(game_id)
-            # Give human players time to respond to the trade offer
-            has_humans = any(
-                not manager.is_ai(game_id, pid) for pid in engine.state.player_order
-                if pid != current
-            )
-            if has_humans and engine.state.trade_offers:
-                await asyncio.sleep(3)
+            await handle_ai_trade_responses(game_id, delay_for_humans=True)
             # Cancel any unclaimed trade offers from this bot
             for tid in list(engine.state.trade_offers.keys()):
                 offer = engine.state.trade_offers.get(tid)
