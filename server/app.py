@@ -143,6 +143,32 @@ async def create_game(body: dict = None):
     if settings.get("friendly_robber"):
         config.robber.friendly_turns = 3  # store for engine to use
 
+    # Discard threshold
+    if "discard_threshold" in settings:
+        config.robber.discard_threshold = int(settings["discard_threshold"])
+
+    # Piece limits
+    if "max_roads" in settings:
+        config.building_types["road"].max_per_player = int(settings["max_roads"])
+    if "max_settlements" in settings:
+        config.building_types["settlement"].max_per_player = int(settings["max_settlements"])
+    if "max_cities" in settings:
+        config.building_types["city"].max_per_player = int(settings["max_cities"])
+
+    # Dev card counts
+    dev_cards_setting = settings.get("dev_cards")
+    if dev_cards_setting:
+        for card_id, count in dev_cards_setting.items():
+            if card_id in config.dev_card_types:
+                config.dev_card_types[card_id].count_in_deck = int(count)
+
+    # Port counts
+    port_counts_setting = settings.get("port_counts")
+    if port_counts_setting:
+        config.board_template.port_counts = {
+            k: int(v) for k, v in port_counts_setting.items()
+        }
+
     engine = manager.create_game(config)
     manager.game_settings[engine.state.game_id] = settings
 

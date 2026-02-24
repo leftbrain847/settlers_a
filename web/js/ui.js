@@ -130,6 +130,25 @@
             board_rings: parseInt(document.getElementById('setting-rings').value) || 3,
             starting_resources: document.getElementById('setting-starting-res').value,
             friendly_robber: document.getElementById('setting-friendly-robber').checked,
+            discard_threshold: parseInt(document.getElementById('setting-discard-threshold').value) || 7,
+            max_roads: parseInt(document.getElementById('setting-max-roads').value) || 15,
+            max_settlements: parseInt(document.getElementById('setting-max-settlements').value) || 5,
+            max_cities: parseInt(document.getElementById('setting-max-cities').value) || 4,
+            dev_cards: {
+                knight: parseInt(document.getElementById('setting-dev-knight').value) || 0,
+                road_building: parseInt(document.getElementById('setting-dev-road-building').value) || 0,
+                year_of_plenty: parseInt(document.getElementById('setting-dev-year-of-plenty').value) || 0,
+                monopoly: parseInt(document.getElementById('setting-dev-monopoly').value) || 0,
+                victory_point: parseInt(document.getElementById('setting-dev-victory-point').value) || 0,
+            },
+            port_counts: {
+                generic: parseInt(document.getElementById('setting-port-generic').value) || 0,
+                brick_port: parseInt(document.getElementById('setting-port-brick').value) || 0,
+                lumber_port: parseInt(document.getElementById('setting-port-lumber').value) || 0,
+                ore_port: parseInt(document.getElementById('setting-port-ore').value) || 0,
+                grain_port: parseInt(document.getElementById('setting-port-grain').value) || 0,
+                wool_port: parseInt(document.getElementById('setting-port-wool').value) || 0,
+            },
         };
 
         btnStart.disabled = true;
@@ -443,10 +462,15 @@
             const roads = (p.buildings_placed || {}).road || 0;
             const devCards = isMe ? (p.dev_cards || []).length : (p.dev_card_count || 0);
 
+            const cfg = Game.getConfig();
+            const maxSettlements = cfg && cfg.building_types && cfg.building_types.settlement ? cfg.building_types.settlement.max_per_player : 5;
+            const maxCities = cfg && cfg.building_types && cfg.building_types.city ? cfg.building_types.city.max_per_player : 4;
+            const maxRoads = cfg && cfg.building_types && cfg.building_types.road ? cfg.building_types.road.max_per_player : 15;
+
             let statsHTML = '<div class="player-stats">';
-            statsHTML += `<span title="Settlements">${settlements}/5 stl</span>`;
-            statsHTML += `<span title="Cities">${cities}/4 cty</span>`;
-            statsHTML += `<span title="Roads">${roads}/15 rd</span>`;
+            statsHTML += `<span title="Settlements">${settlements}/${maxSettlements} stl</span>`;
+            statsHTML += `<span title="Cities">${cities}/${maxCities} cty</span>`;
+            statsHTML += `<span title="Roads">${roads}/${maxRoads} rd</span>`;
             if (knightsPlayed > 0) {
                 statsHTML += `<span title="Knights played" class="stat-knights">${knightsPlayed} knt</span>`;
             }

@@ -201,16 +201,21 @@ def _spiral_key(q: int, r: int) -> tuple[int, int]:
 
 
 def _assign_ports(board: Board, config: GameConfig, rng: random.Random):
-    """Assign ports to coastal intersections."""
+    """Assign ports randomly along the outer ring's exterior edges.
+
+    Ports are placed on coastal edge-pairs (two adjacent coastal intersections
+    sharing an edge that borders only one hex). They are distributed randomly
+    around the coast with minimum spacing to avoid clumping.
+    """
     template = config.board_template
 
     # Find coastal intersections (those touching fewer than 3 hexes)
-    coastal = [
+    coastal_set = set(
         iid for iid, inter in board.intersections.items()
         if len(inter.hex_ids) < 3
-    ]
+    )
 
-    if not coastal or not template.port_counts:
+    if not coastal_set or not template.port_counts:
         return
 
     # Build port bag
@@ -219,36 +224,88 @@ def _assign_ports(board: Board, config: GameConfig, rng: random.Random):
         port_bag.extend([port_type_id] * count)
     rng.shuffle(port_bag)
 
-    # Group coastal intersections into pairs (adjacent coastal nodes = one port)
-    assigned = set()
-    port_pairs = []
-    for iid in coastal:
-        if iid in assigned:
-            continue
-        # Find an adjacent coastal intersection to pair with
-        for adj_iid in board.adjacent_intersections.get(iid, []):
-            if adj_iid in coastal and adj_iid not in assigned:
-                port_pairs.append((iid, adj_iid))
-                assigned.add(iid)
-                assigned.add(adj_iid)
+    if not port_bag:
+        return
+
+    # Find exterior edges: edges where BOTH intersections are coastal.
+    # These are the edges on the outside perimeter of the board.
+    exterior_edges = []
+    for eid, edge in board.edges.items():
+        a, b = edge.intersection_ids
+        if a in coastal_set and b in coastal_set:
+            exterior_edges.append((eid, a, b))
+
+    if not exterior_edges:
+        return
+
+    # Order exterior edges into a chain around the perimeter by walking adjacency.
+    # Build adjacency for coastal intersections along exterior edges.
+    coastal_adj: dict[int, list[tuple[int, int]]] = {}  # iid -> [(neighbor_iid, eid)]
+    for eid, a, b in exterior_edges:
+        coastal_adj.setdefault(a, []).append((b, eid))
+        coastal_adj.setdefault(b, []).append((a, eid))
+
+    # Walk the perimeter chain starting from a random exterior intersection
+    ordered_edges = []
+    visited_edges = set()
+    start_iid = exterior_edges[0][1]
+    current = start_iid
+
+    # Pick a direction to walk
+    for _ in range(len(exterior_edges) + 1):
+        moved = False
+        for neighbor, eid in coastal_adj.get(current, []):
+            if eid not in visited_edges:
+                ordered_edges.append((eid, current, neighbor))
+                visited_edges.add(eid)
+                current = neighbor
+                moved = True
                 break
+        if not moved:
+            break
 
-    # Distribute ports evenly around the coast
-    if not port_pairs:
-        return
+    if not ordered_edges:
+        ordered_edges = exterior_edges
 
-    # Space ports evenly
+    # Group consecutive edge pairs that share an intersection into "port slots".
+    # Each port slot is a pair of intersections (the two ends of an exterior edge).
+    # We treat each exterior edge as a potential port slot.
+    port_slots = ordered_edges  # Each slot: (eid, iid_a, iid_b)
+
     num_ports = len(port_bag)
-    if num_ports == 0:
+    num_slots = len(port_slots)
+
+    if num_ports == 0 or num_slots == 0:
         return
 
-    step = max(1, len(port_pairs) // num_ports)
+    # Distribute ports with even spacing around the perimeter, with random offset
+    step = num_slots / num_ports
+    offset = rng.random() * step  # random starting offset for variety
+
+    used_intersections = set()
     port_idx = 0
-    for i in range(0, len(port_pairs), step):
+
+    for i in range(num_ports):
         if port_idx >= len(port_bag):
             break
-        iid_a, iid_b = port_pairs[i]
-        port_type_id = port_bag[port_idx]
-        board.intersections[iid_a].port = port_type_id
-        board.intersections[iid_b].port = port_type_id
-        port_idx += 1
+
+        target_pos = offset + i * step
+        slot_idx = int(target_pos) % num_slots
+
+        # Find nearest available slot (avoid sharing intersections with another port)
+        found = False
+        for delta in range(num_slots):
+            for direction in (delta, -delta):
+                check_idx = (slot_idx + direction) % num_slots
+                _, iid_a, iid_b = port_slots[check_idx]
+                if iid_a not in used_intersections and iid_b not in used_intersections:
+                    port_type_id = port_bag[port_idx]
+                    board.intersections[iid_a].port = port_type_id
+                    board.intersections[iid_b].port = port_type_id
+                    used_intersections.add(iid_a)
+                    used_intersections.add(iid_b)
+                    port_idx += 1
+                    found = True
+                    break
+            if found:
+                break

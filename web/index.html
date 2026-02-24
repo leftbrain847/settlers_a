@@ -55,6 +55,68 @@
                     Friendly Robber (no stealing first 3 turns)
                 </label>
             </div>
+
+            <hr style="border-color:var(--border);margin:8px 0;">
+
+            <!-- Robber discard threshold -->
+            <div class="setting-group">
+                <label>Cards to trigger discard on 7</label>
+                <input type="number" id="setting-discard-threshold" value="7" min="1" max="50">
+            </div>
+
+            <!-- Player piece limits -->
+            <div class="setting-group">
+                <label>Roads per player</label>
+                <input type="number" id="setting-max-roads" value="15" min="1" max="99">
+            </div>
+            <div class="setting-group">
+                <label>Settlements per player</label>
+                <input type="number" id="setting-max-settlements" value="5" min="1" max="99">
+            </div>
+            <div class="setting-group">
+                <label>Cities per player</label>
+                <input type="number" id="setting-max-cities" value="4" min="1" max="99">
+            </div>
+
+            <hr style="border-color:var(--border);margin:8px 0;">
+
+            <!-- Dev card counts -->
+            <div class="setting-group">
+                <label style="font-weight:bold;">Development Cards</label>
+            </div>
+            <div class="setting-group" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                <label>Knights</label>
+                <input type="number" id="setting-dev-knight" value="14" min="0" max="99">
+                <label>Road Building</label>
+                <input type="number" id="setting-dev-road-building" value="2" min="0" max="99">
+                <label>Year of Plenty</label>
+                <input type="number" id="setting-dev-year-of-plenty" value="2" min="0" max="99">
+                <label>Monopoly</label>
+                <input type="number" id="setting-dev-monopoly" value="2" min="0" max="99">
+                <label>Victory Point</label>
+                <input type="number" id="setting-dev-victory-point" value="5" min="0" max="99">
+            </div>
+
+            <hr style="border-color:var(--border);margin:8px 0;">
+
+            <!-- Port counts -->
+            <div class="setting-group">
+                <label style="font-weight:bold;">Ports</label>
+            </div>
+            <div class="setting-group" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                <label>3:1 Generic</label>
+                <input type="number" id="setting-port-generic" value="4" min="0" max="20">
+                <label>2:1 Brick</label>
+                <input type="number" id="setting-port-brick" value="1" min="0" max="20">
+                <label>2:1 Lumber</label>
+                <input type="number" id="setting-port-lumber" value="1" min="0" max="20">
+                <label>2:1 Ore</label>
+                <input type="number" id="setting-port-ore" value="1" min="0" max="20">
+                <label>2:1 Grain</label>
+                <input type="number" id="setting-port-grain" value="1" min="0" max="20">
+                <label>2:1 Wool</label>
+                <input type="number" id="setting-port-wool" value="1" min="0" max="20">
+            </div>
         </div>
 
         <button class="btn btn-primary" id="btn-start-game">Start Game</button>
