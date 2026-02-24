@@ -50,8 +50,31 @@
         },
     };
 
+    // Terrain color sets per theme (hills, forest, mountains, fields, pasture, desert)
+    const themeTerrain = {
+        midnight: null,  // use config defaults
+        ocean:    { hills: '#a85232', forest: '#1a6b4a', mountains: '#5a7a8a', fields: '#c8a820', pasture: '#18a060', desert: '#d8c878' },
+        forest:   { hills: '#b85a3a', forest: '#2a7530', mountains: '#6a7a6a', fields: '#d4b020', pasture: '#3a9048', desert: '#c8c090' },
+        sunset:   { hills: '#d45a3a', forest: '#3a7a40', mountains: '#8a7570', fields: '#e8b830', pasture: '#40a858', desert: '#e0c890' },
+        slate:    { hills: '#b84848', forest: '#2a8a52', mountains: '#707090', fields: '#d0a830', pasture: '#30a868', desert: '#c8c0b0' },
+        nord:     { hills: '#bf616a', forest: '#a3be8c', mountains: '#81a1c1', fields: '#ebcb8b', pasture: '#8fbcbb', desert: '#d8dee9' },
+    };
+
+    // Player color sets per theme (6 colors each, chosen to not overlap with terrain)
+    const themePlayerColors = {
+        midnight: null,  // use server defaults
+        ocean:    ['#ff6b6b', '#48cae4', '#f0f0f0', '#ffa947', '#c77dff', '#06d6a0'],
+        forest:   ['#e05050', '#50a0e0', '#f0f0f0', '#e0a030', '#c060d0', '#50d0a0'],
+        sunset:   ['#4ecdc4', '#5e9ce0', '#f0f0f0', '#ffd166', '#a06cd5', '#2ecc71'],
+        slate:    ['#f87171', '#60a5fa', '#f0f0f0', '#fbbf24', '#a78bfa', '#34d399'],
+        nord:     ['#d08770', '#5e81ac', '#eceff4', '#e5a050', '#b48ead', '#88c0d0'],
+    };
+
+    let currentThemePlayerColors = null;
+
     document.getElementById('theme-select').addEventListener('change', (e) => {
-        const theme = themes[e.target.value];
+        const themeName = e.target.value;
+        const theme = themes[themeName];
         if (!theme) return;
         const root = document.documentElement;
         for (const [key, value] of Object.entries(theme)) {
@@ -63,6 +86,13 @@
         if (boardArea && theme['--board-bg']) {
             boardArea.style.background = theme['--board-bg'];
         }
+        // Apply terrain color overrides
+        const tc = themeTerrain[themeName] || null;
+        BoardRenderer.setThemeTerrainColors(tc);
+        // Store player color overrides
+        currentThemePlayerColors = themePlayerColors[themeName] || null;
+        // Re-render if game is active
+        if (Game.getState()) renderAll();
     });
 
     const btnStart = document.getElementById('btn-start-game');
@@ -193,7 +223,7 @@
             if (p.is_ai) tag = '<span class="player-tag">Bot</span>';
             else if (isMe) tag = '<span class="player-tag">You</span>';
             div.innerHTML = `
-                <span class="player-color-dot" style="background:${p.color}"></span>
+                <span class="player-color-dot" style="background:${remapPlayerColor(p.color)}"></span>
                 <span class="player-label">${p.name}</span>
                 ${tag}
             `;
@@ -392,19 +422,31 @@
     // Board rendering
     // ---------------------------------------------------------------
 
+    // Server-side color palette (must match engine/engine.py PLAYER_COLORS)
+    const SERVER_PLAYER_COLORS = ["#e74c3c", "#3498db", "#ecf0f1", "#f39c12", "#9b59b6", "#1abc9c"];
+
+    function remapPlayerColor(serverColor) {
+        if (!currentThemePlayerColors) return serverColor;
+        const idx = SERVER_PLAYER_COLORS.indexOf(serverColor);
+        if (idx >= 0 && idx < currentThemePlayerColors.length) {
+            return currentThemePlayerColors[idx];
+        }
+        return serverColor;
+    }
+
     function renderBoard(state, config) {
         // Enrich board data with player colors for buildings
         const boardData = JSON.parse(JSON.stringify(state.board));
 
-        // Set player colors on buildings
+        // Set player colors on buildings (with theme remapping)
         for (const [iid, inter] of Object.entries(boardData.intersections)) {
             if (inter.building) {
-                inter.building.player = Game.getPlayerColor(inter.building.player);
+                inter.building.player = remapPlayerColor(Game.getPlayerColor(inter.building.player));
             }
         }
         for (const [eid, edge] of Object.entries(boardData.edges)) {
             if (edge.building) {
-                edge.building.player = Game.getPlayerColor(edge.building.player);
+                edge.building.player = remapPlayerColor(Game.getPlayerColor(edge.building.player));
             }
         }
 
@@ -560,7 +602,7 @@
 
             card.innerHTML = `
                 <div class="player-name">
-                    <span class="player-color-dot" style="background:${p.color}"></span>
+                    <span class="player-color-dot" style="background:${remapPlayerColor(p.color)}"></span>
                     ${p.name}${isMe ? ' (You)' : ''}
                     ${isCurrent ? ' ◄' : ''}
                 </div>
@@ -895,7 +937,7 @@
 
         if (currentPlayer) {
             turnInd.textContent = `${currentPlayer.name}'s turn`;
-            turnInd.style.background = currentPlayer.color;
+            turnInd.style.background = remapPlayerColor(currentPlayer.color);
             turnInd.style.color = 'white';
         }
 

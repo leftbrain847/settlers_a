@@ -44,6 +44,19 @@ const BoardRenderer = (() => {
         }
     }
 
+    // Theme override for terrain colors
+    let themeTerrainOverrides = null;
+    function setThemeTerrainColors(overrides) {
+        themeTerrainOverrides = overrides;
+    }
+
+    function getTerrainColor(terrainId) {
+        if (themeTerrainOverrides && themeTerrainOverrides[terrainId]) {
+            return themeTerrainOverrides[terrainId];
+        }
+        return terrainColors[terrainId] || '#666';
+    }
+
     // Convert axial hex coords to pixel
     function hexToPixel(q, r) {
         const x = HEX_SIZE * (SQRT3 * q + SQRT3 / 2 * r);
@@ -180,7 +193,7 @@ const BoardRenderer = (() => {
 
     function drawHex(hex, callbacks) {
         const { x, y } = hexToPixel(hex.q, hex.r);
-        const color = terrainColors[hex.terrain] || '#666';
+        const color = getTerrainColor(hex.terrain);
 
         const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
         polygon.setAttribute('points', hexPointsString(x, y));
@@ -501,6 +514,7 @@ const BoardRenderer = (() => {
     return {
         init,
         setTerrainColors,
+        setThemeTerrainColors,
         render,
         highlightIntersections,
         highlightEdges,
