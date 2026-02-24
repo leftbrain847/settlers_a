@@ -178,6 +178,7 @@
         </div>
         <div style="display:flex; gap:8px; align-items:center;">
             <span id="dev-cards-remaining" style="font-size:0.85em; color:var(--text-dim);"></span>
+            <button class="btn btn-small btn-secondary" id="btn-view-settings" style="font-size:0.75em; padding:4px 10px;">Settings</button>
             <span id="game-id-display" style="font-size:0.75em; color:var(--text-dim);"></span>
         </div>
     </div>
@@ -255,7 +256,7 @@
 <div class="modal-overlay" id="trade-offer-modal">
     <div class="modal trade-modal">
         <h2>Trade with Players</h2>
-        <p class="trade-hint">Click to add resources, right-click or shift-click to remove.</p>
+        <p class="trade-hint">Use the +/- buttons to adjust resource amounts.</p>
 
         <div class="trade-builder">
             <div class="trade-side trade-give-side">
@@ -287,6 +288,15 @@
             <button class="btn btn-primary" id="btn-accept-trade">Accept</button>
             <button class="btn btn-secondary" id="btn-decline-trade">Decline</button>
         </div>
+    </div>
+</div>
+
+<!-- Settings Viewer Modal -->
+<div class="modal-overlay" id="settings-viewer-modal">
+    <div class="modal" style="max-width:450px;">
+        <h2>Game Settings</h2>
+        <div id="settings-viewer-content" style="max-height:60vh;overflow-y:auto;font-size:0.9em;line-height:1.6;"></div>
+        <button class="btn btn-secondary" id="btn-close-settings-viewer" style="margin-top:12px;">Close</button>
     </div>
 </div>
 

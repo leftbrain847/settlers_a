@@ -1032,9 +1032,10 @@ body {
 }
 
 .trade-res-card .res-have {
-    font-size: 0.6em;
-    color: rgba(255,255,255,0.6);
+    font-size: 0.8em;
+    color: rgba(255,255,255,0.75);
     margin-top: 2px;
+    font-weight: 600;
 }
 
 .trade-pm-btns {
@@ -1091,7 +1092,7 @@ body {
 
 .trade-summary {
     text-align: center;
-    font-size: 0.8em;
+    font-size: 0.95em;
     color: var(--text-dim);
     margin-top: 10px;
     min-height: 1.2em;

@@ -1218,6 +1218,70 @@
         };
     }
 
+    // Settings viewer
+    document.getElementById('btn-view-settings').addEventListener('click', () => {
+        const modal = document.getElementById('settings-viewer-modal');
+        const content = document.getElementById('settings-viewer-content');
+        const config = Game.getConfig();
+
+        let html = '';
+        if (config) {
+            const vpThreshold = config.win_conditions && config.win_conditions[0]
+                ? config.win_conditions[0].params.threshold : '?';
+            html += `<div><strong>Victory Points to Win:</strong> ${vpThreshold}</div>`;
+
+            const numRings = config.board_template ? config.board_template.num_rings : '?';
+            html += `<div><strong>Board Size:</strong> ${numRings} rings</div>`;
+
+            if (config.robber) {
+                html += `<div><strong>Discard Threshold:</strong> >${config.robber.discard_threshold} cards</div>`;
+            }
+
+            if (config.building_types) {
+                const bt = config.building_types;
+                html += `<div style="margin-top:8px;"><strong>Piece Limits:</strong></div>`;
+                if (bt.road) html += `<div style="padding-left:12px;">Roads: ${bt.road.max_per_player}</div>`;
+                if (bt.settlement) html += `<div style="padding-left:12px;">Settlements: ${bt.settlement.max_per_player}</div>`;
+                if (bt.city) html += `<div style="padding-left:12px;">Cities: ${bt.city.max_per_player}</div>`;
+            }
+
+            if (config.dev_card_types) {
+                html += `<div style="margin-top:8px;"><strong>Dev Card Deck:</strong></div>`;
+                for (const [id, dc] of Object.entries(config.dev_card_types)) {
+                    const name = dc.name || id.replace(/_/g, ' ');
+                    html += `<div style="padding-left:12px;">${name}: ${dc.count_in_deck}</div>`;
+                }
+            }
+
+            if (config.board_template && config.board_template.port_counts) {
+                html += `<div style="margin-top:8px;"><strong>Ports:</strong></div>`;
+                for (const [id, count] of Object.entries(config.board_template.port_counts)) {
+                    const pt = config.port_types && config.port_types[id];
+                    const name = pt ? pt.name : id;
+                    html += `<div style="padding-left:12px;">${name}: ${count}</div>`;
+                }
+            }
+
+            if (config.building_types) {
+                html += `<div style="margin-top:8px;"><strong>Building Costs:</strong></div>`;
+                for (const [id, bt] of Object.entries(config.building_types)) {
+                    if (id === 'dev_card') continue;
+                    const costStr = Object.entries(bt.cost).map(([r, c]) =>
+                        `${c} ${r.charAt(0).toUpperCase() + r.slice(1)}`).join(', ');
+                    html += `<div style="padding-left:12px;">${bt.name}: ${costStr}</div>`;
+                }
+            }
+        } else {
+            html = '<div style="color:var(--text-dim);">Settings not available</div>';
+        }
+        content.innerHTML = html;
+        modal.classList.add('active');
+    });
+
+    document.getElementById('btn-close-settings-viewer').addEventListener('click', () => {
+        document.getElementById('settings-viewer-modal').classList.remove('active');
+    });
+
     function checkWinner(state) {
         if (state.winner) {
             const winner = state.players[state.winner];
