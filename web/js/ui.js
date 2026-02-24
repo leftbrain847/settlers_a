@@ -54,20 +54,27 @@
     const themeTerrain = {
         midnight: null,  // use config defaults
         ocean:    { hills: '#a85232', forest: '#1a6b4a', mountains: '#5a7a8a', fields: '#c8a820', pasture: '#18a060', desert: '#d8c878' },
-        forest:   { hills: '#b85a3a', forest: '#2a7530', mountains: '#6a7a6a', fields: '#d4b020', pasture: '#3a9048', desert: '#c8c090' },
-        sunset:   { hills: '#d45a3a', forest: '#3a7a40', mountains: '#8a7570', fields: '#e8b830', pasture: '#40a858', desert: '#e0c890' },
-        slate:    { hills: '#b84848', forest: '#2a8a52', mountains: '#707090', fields: '#d0a830', pasture: '#30a868', desert: '#c8c0b0' },
+        forest:   { hills: '#a0522d', forest: '#355e3b', mountains: '#5a6e5a', fields: '#bfa04a', pasture: '#4a7c59', desert: '#c8b97a' },
+        sunset:   { hills: '#cd5c45', forest: '#5a8a50', mountains: '#9a8070', fields: '#daa520', pasture: '#6aaa5a', desert: '#e8d8a0' },
+        slate:    { hills: '#8b4a5a', forest: '#3a7a6a', mountains: '#6a6a8a', fields: '#b8960a', pasture: '#4a8a6a', desert: '#a0a0b0' },
         nord:     { hills: '#bf616a', forest: '#a3be8c', mountains: '#81a1c1', fields: '#ebcb8b', pasture: '#8fbcbb', desert: '#d8dee9' },
     };
 
-    // Player color sets per theme (6 colors each, chosen to not overlap with terrain)
+    // Player color palettes — each theme has 6 distinct, harmonious colors.
+    // Designed so every palette feels unique, not just a tint of the same hues.
     const themePlayerColors = {
-        midnight: null,  // use server defaults
-        ocean:    ['#ff6b6b', '#48cae4', '#f0f0f0', '#ffa947', '#c77dff', '#06d6a0'],
-        forest:   ['#e05050', '#50a0e0', '#f0f0f0', '#e0a030', '#c060d0', '#50d0a0'],
-        sunset:   ['#4ecdc4', '#5e9ce0', '#f0f0f0', '#ffd166', '#a06cd5', '#2ecc71'],
-        slate:    ['#f87171', '#60a5fa', '#f0f0f0', '#fbbf24', '#a78bfa', '#34d399'],
-        nord:     ['#d08770', '#5e81ac', '#eceff4', '#e5a050', '#b48ead', '#88c0d0'],
+        // Midnight: bold primaries (server defaults)
+        midnight: null,
+        // Ocean: tropical reef — coral, turquoise, sand, deep violet, hot pink, lime
+        ocean:    ['#FF6B6B', '#00CEC9', '#FFEAA7', '#6C5CE7', '#FD79A8', '#55EFC4'],
+        // Forest: earthy naturals — terracotta, teal, goldenrod, plum, olive, rust
+        forest:   ['#E76F51', '#2A9D8F', '#E9C46A', '#7B2D8E', '#606C38', '#D62828'],
+        // Sunset: vivid neon — hot pink, electric yellow, deep purple, tangerine, mint, cobalt
+        sunset:   ['#FF006E', '#FFBE0B', '#8338EC', '#FB5607', '#3BCEAC', '#0077B6'],
+        // Slate: cyberpunk glow — cyan, magenta, acid green, coral, lavender, gold
+        slate:    ['#00F5FF', '#FF10F0', '#39FF14', '#FF6F61', '#BF5AF2', '#FFD60A'],
+        // Nord: muted Scandinavian — salmon, steel blue, snow, peach, mauve, frost
+        nord:     ['#BF616A', '#5E81AC', '#ECEFF4', '#D08770', '#B48EAD', '#88C0D0'],
     };
 
     let currentThemePlayerColors = null;
@@ -416,6 +423,8 @@
         renderTopBar(state);
         renderLog(state);
         checkWinner(state);
+        // Update proposer's trade response display if active
+        if (activeSentTradeId) updateTradeResponsesDisplay();
     }
 
     // ---------------------------------------------------------------
@@ -1018,11 +1027,19 @@
             }
         }
 
-        // Check for incoming trades
+        // Check for incoming trades — show only the first unresponded one
         if (state.trade_offers) {
-            for (const [tid, offer] of Object.entries(state.trade_offers)) {
-                if (offer.from_player !== Game.getPlayerId()) {
-                    showIncomingTradeModal(tid, offer, state);
+            const incomingModal = document.getElementById('incoming-trade-modal');
+            const alreadyShowing = incomingModal.classList.contains('active');
+            if (!alreadyShowing) {
+                for (const [tid, offer] of Object.entries(state.trade_offers)) {
+                    if (offer.from_player !== Game.getPlayerId()) {
+                        const myResponse = offer.responses ? offer.responses[Game.getPlayerId()] : undefined;
+                        if (!myResponse) {
+                            showIncomingTradeModal(tid, offer, state);
+                            break; // Only show one at a time
+                        }
+                    }
                 }
             }
         }
@@ -1165,6 +1182,10 @@
         wheat: '#c9a800', sheep: '#2ecc71',
     };
 
+    // Track the trade offer we sent (for response display)
+    let activeSentTradeId = null;
+    let tradeTimerInterval = null;
+
     function showTradeOfferModal() {
         const modal = document.getElementById('trade-offer-modal');
         const state = Game.getState();
@@ -1172,11 +1193,17 @@
         const config = Game.getConfig();
         const resources = config ? Object.keys(config.resource_types) : Object.keys(me.resources);
 
+        // Show build section, hide responses section
+        document.getElementById('trade-build-section').style.display = '';
+        document.getElementById('trade-responses-section').style.display = 'none';
+        document.getElementById('trade-offer-title').textContent = 'Trade with Players';
+        document.getElementById('trade-offer-hint').textContent = 'Use the +/- buttons to adjust resource amounts.';
+        document.getElementById('trade-offer-hint').style.display = '';
+
         const give = {};
         const want = {};
 
         function renderCards() {
-            // Give side — show your resources with +/- buttons
             const giveCards = document.getElementById('trade-give-cards');
             giveCards.innerHTML = '';
             for (const res of resources) {
@@ -1185,10 +1212,10 @@
                 const card = document.createElement('div');
                 card.className = 'trade-res-card' + (selected > 0 ? ' selected' : '');
                 card.dataset.res = res;
-                const giveDisplayName = res.charAt(0).toUpperCase() + res.slice(1);
+                const displayName = res.charAt(0).toUpperCase() + res.slice(1);
                 card.innerHTML = `
                     <div class="res-count">${selected}</div>
-                    <div class="res-name">${giveDisplayName}</div>
+                    <div class="res-name">${displayName}</div>
                     <div class="res-have">(${have})</div>
                     <div class="trade-pm-btns">
                         <button class="trade-pm-btn minus" data-res="${res}" data-side="give">&#x2212;</button>
@@ -1198,7 +1225,6 @@
                 giveCards.appendChild(card);
             }
 
-            // Want side — show resources with +/- buttons
             const wantCards = document.getElementById('trade-want-cards');
             wantCards.innerHTML = '';
             for (const res of resources) {
@@ -1206,10 +1232,10 @@
                 const card = document.createElement('div');
                 card.className = 'trade-res-card' + (selected > 0 ? ' selected' : '');
                 card.dataset.res = res;
-                const wantDisplayName = res.charAt(0).toUpperCase() + res.slice(1);
+                const displayName = res.charAt(0).toUpperCase() + res.slice(1);
                 card.innerHTML = `
                     <div class="res-count">${selected}</div>
-                    <div class="res-name">${wantDisplayName}</div>
+                    <div class="res-name">${displayName}</div>
                     <div class="trade-pm-btns">
                         <button class="trade-pm-btn minus" data-res="${res}" data-side="want">&#x2212;</button>
                         <button class="trade-pm-btn plus" data-res="${res}" data-side="want">+</button>
@@ -1218,8 +1244,8 @@
                 wantCards.appendChild(card);
             }
 
-            // Attach +/- button listeners
-            document.querySelectorAll('.trade-pm-btn').forEach(btn => {
+            // Only target buttons inside trade-build-section to avoid clobbering counter-offer buttons
+            document.getElementById('trade-build-section').querySelectorAll('.trade-pm-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const r = btn.dataset.res;
@@ -1237,7 +1263,6 @@
                 });
             });
 
-            // Summaries
             const giveSummary = Object.entries(give).filter(([, v]) => v > 0).map(([r, c]) => `${c} ${r.charAt(0).toUpperCase() + r.slice(1)}`).join(', ');
             const wantSummary = Object.entries(want).filter(([, v]) => v > 0).map(([r, c]) => `${c} ${r.charAt(0).toUpperCase() + r.slice(1)}`).join(', ');
             document.getElementById('trade-give-summary').textContent = giveSummary || 'Click to add';
@@ -1257,12 +1282,138 @@
                 return;
             }
             Game.tradeOffer(offering, requesting);
-            modal.classList.remove('active');
+            // Switch to response tracking phase
+            showTradeResponsesPhase(offering, requesting);
         };
 
         document.getElementById('btn-cancel-trade').onclick = () => {
             modal.classList.remove('active');
+            activeSentTradeId = null;
         };
+    }
+
+    function showTradeResponsesPhase(offering, requesting) {
+        document.getElementById('trade-build-section').style.display = 'none';
+        document.getElementById('trade-responses-section').style.display = '';
+        document.getElementById('trade-offer-title').textContent = 'Waiting for Responses';
+        document.getElementById('trade-offer-hint').style.display = 'none';
+
+        // Show recap of what we offered
+        function resChips(obj) {
+            return Object.entries(obj).filter(([, c]) => c > 0).map(([r, c]) =>
+                `<span class="res-chip" style="color:${resColors[r] || 'var(--text)'}">${c} ${r.charAt(0).toUpperCase() + r.slice(1)}</span>`
+            ).join(' ');
+        }
+        document.getElementById('trade-offer-recap').innerHTML =
+            `Offering ${resChips(offering)} for ${resChips(requesting)}`;
+
+        // Find our trade ID from state
+        const state = Game.getState();
+        const myId = Game.getPlayerId();
+        activeSentTradeId = null;
+        if (state.trade_offers) {
+            for (const [tid, offer] of Object.entries(state.trade_offers)) {
+                if (offer.from_player === myId) {
+                    activeSentTradeId = tid;
+                    break;
+                }
+            }
+        }
+
+        // Start timer
+        const config = Game.getConfig();
+        const timerSeconds = (config && config.trade_rules && config.trade_rules.trade_timer) || 10;
+        startTradeTimer(timerSeconds);
+
+        // Initial render of responses
+        updateTradeResponsesDisplay();
+
+        document.getElementById('btn-cancel-sent-trade').onclick = () => {
+            document.getElementById('trade-offer-modal').classList.remove('active');
+            activeSentTradeId = null;
+            clearTradeTimer();
+        };
+    }
+
+    function startTradeTimer(seconds) {
+        clearTradeTimer();
+        const fill = document.getElementById('trade-timer-fill');
+        fill.style.transition = 'none';
+        fill.style.width = '100%';
+        // Force reflow
+        fill.offsetHeight;
+        fill.style.transition = `width ${seconds}s linear`;
+        fill.style.width = '0%';
+
+        tradeTimerInterval = setTimeout(() => {
+            // Timer expired — trade stays open but timer is done
+        }, seconds * 1000);
+    }
+
+    function clearTradeTimer() {
+        if (tradeTimerInterval) {
+            clearTimeout(tradeTimerInterval);
+            tradeTimerInterval = null;
+        }
+    }
+
+    function updateTradeResponsesDisplay() {
+        const state = Game.getState();
+        if (!state || !activeSentTradeId) return;
+
+        const offer = state.trade_offers ? state.trade_offers[activeSentTradeId] : null;
+        if (!offer) {
+            // Trade was completed or cancelled
+            document.getElementById('trade-offer-modal').classList.remove('active');
+            activeSentTradeId = null;
+            clearTradeTimer();
+            return;
+        }
+
+        const list = document.getElementById('trade-responses-list');
+        list.innerHTML = '';
+        const myId = Game.getPlayerId();
+
+        for (const pid of state.player_order) {
+            if (pid === myId) continue;
+            const p = state.players[pid];
+            const response = offer.responses ? offer.responses[pid] : undefined;
+
+            const row = document.createElement('div');
+            row.className = 'trade-response-row';
+
+            let statusHTML = '';
+            let actionHTML = '';
+            if (response === 'accepted') {
+                statusHTML = '<span class="response-status accepted">Accepted</span>';
+                actionHTML = `<button class="btn btn-small btn-primary btn-confirm-accepter" data-pid="${pid}">Trade</button>`;
+            } else if (response === 'declined') {
+                statusHTML = '<span class="response-status declined">Declined</span>';
+            } else if (response === 'countered') {
+                statusHTML = '<span class="response-status countered">Countered</span>';
+            } else {
+                statusHTML = '<span class="response-status waiting">Waiting...</span>';
+            }
+
+            row.innerHTML = `
+                <span class="player-dot" style="background:${remapPlayerColor(p.color)}"></span>
+                <span>${p.name}</span>
+                ${statusHTML}
+                ${actionHTML}
+            `;
+            list.appendChild(row);
+        }
+
+        // Attach confirm buttons
+        list.querySelectorAll('.btn-confirm-accepter').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const accepterId = btn.dataset.pid;
+                Game.tradeAccept(activeSentTradeId, accepterId);
+                document.getElementById('trade-offer-modal').classList.remove('active');
+                activeSentTradeId = null;
+                clearTradeTimer();
+            });
+        });
     }
 
     // Reject-all state: { until: turnNumber } — auto-decline until this turn
@@ -1271,10 +1422,9 @@
     function showIncomingTradeModal(tradeId, offer, state) {
         // Auto-decline if reject-all is active
         if (rejectAllUntil > 0 && state.turn_number < rejectAllUntil) {
-            // Silently decline
+            Game.tradeRespond(tradeId, 'decline');
             return;
         }
-        // Reset reject-all if expired
         if (state.turn_number >= rejectAllUntil) {
             rejectAllUntil = 0;
         }
@@ -1322,78 +1472,113 @@
         document.getElementById('counter-offer-section').style.display = 'none';
         document.getElementById('reject-all-section').style.display = 'none';
 
-        // Setup counter-offer dropdowns
-        const theyRes = document.getElementById('counter-they-res');
-        const youRes = document.getElementById('counter-you-res');
-        theyRes.innerHTML = '';
-        youRes.innerHTML = '';
-        for (const res of resources) {
-            const name = res.charAt(0).toUpperCase() + res.slice(1);
-            theyRes.innerHTML += `<option value="${res}">${name}</option>`;
-            youRes.innerHTML += `<option value="${res}">${name}</option>`;
-        }
-        // Default to the original trade resources
-        const origTheyRes = Object.keys(offer.offering).find(k => offer.offering[k] > 0) || resources[0];
-        const origYouRes = Object.keys(offer.requesting).find(k => offer.requesting[k] > 0) || resources[0];
-        theyRes.value = origTheyRes;
-        youRes.value = origYouRes;
-        const counterTheyCount = document.getElementById('counter-they-count');
-        const counterYouCount = document.getElementById('counter-you-count');
-        counterTheyCount.textContent = offer.offering[origTheyRes] || 1;
-        counterYouCount.textContent = offer.requesting[origYouRes] || 1;
+        // Build multi-resource counter-offer picker
+        const counterTheyGive = {};
+        const counterYouGive = {};
+        // Pre-populate from original offer
+        for (const [r, c] of Object.entries(offer.offering)) { if (c > 0) counterTheyGive[r] = c; }
+        for (const [r, c] of Object.entries(offer.requesting)) { if (c > 0) counterYouGive[r] = c; }
 
-        // Counter +/- buttons
-        document.getElementById('counter-they-minus').onclick = () => {
-            const v = parseInt(counterTheyCount.textContent);
-            if (v > 1) counterTheyCount.textContent = v - 1;
-        };
-        document.getElementById('counter-they-plus').onclick = () => {
-            const v = parseInt(counterTheyCount.textContent);
-            counterTheyCount.textContent = v + 1;
-        };
-        document.getElementById('counter-you-minus').onclick = () => {
-            const v = parseInt(counterYouCount.textContent);
-            if (v > 1) counterYouCount.textContent = v - 1;
-        };
-        document.getElementById('counter-you-plus').onclick = () => {
-            const v = parseInt(counterYouCount.textContent);
-            counterYouCount.textContent = v + 1;
-        };
+        function renderCounterCards() {
+            const theyCards = document.getElementById('counter-they-cards');
+            theyCards.innerHTML = '';
+            for (const res of resources) {
+                const selected = counterTheyGive[res] || 0;
+                const card = document.createElement('div');
+                card.className = 'trade-res-card' + (selected > 0 ? ' selected' : '');
+                card.dataset.res = res;
+                const name = res.charAt(0).toUpperCase() + res.slice(1);
+                card.innerHTML = `
+                    <div class="res-count">${selected}</div>
+                    <div class="res-name">${name}</div>
+                    <div class="trade-pm-btns">
+                        <button class="trade-pm-btn minus" data-res="${res}" data-side="counter-they">&#x2212;</button>
+                        <button class="trade-pm-btn plus" data-res="${res}" data-side="counter-they">+</button>
+                    </div>
+                `;
+                theyCards.appendChild(card);
+            }
+
+            const youCards = document.getElementById('counter-you-cards');
+            youCards.innerHTML = '';
+            for (const res of resources) {
+                const have = me.resources[res] || 0;
+                const selected = counterYouGive[res] || 0;
+                const card = document.createElement('div');
+                card.className = 'trade-res-card' + (selected > 0 ? ' selected' : '');
+                card.dataset.res = res;
+                const name = res.charAt(0).toUpperCase() + res.slice(1);
+                card.innerHTML = `
+                    <div class="res-count">${selected}</div>
+                    <div class="res-name">${name}</div>
+                    <div class="res-have">(${have})</div>
+                    <div class="trade-pm-btns">
+                        <button class="trade-pm-btn minus" data-res="${res}" data-side="counter-you">&#x2212;</button>
+                        <button class="trade-pm-btn plus" data-res="${res}" data-side="counter-you">+</button>
+                    </div>
+                `;
+                youCards.appendChild(card);
+            }
+
+            // Attach listeners only within counter-offer-section
+            document.getElementById('counter-offer-section').querySelectorAll('.trade-pm-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const r = btn.dataset.res;
+                    const side = btn.dataset.side;
+                    const isPlus = btn.classList.contains('plus');
+                    if (side === 'counter-they') {
+                        if (isPlus) counterTheyGive[r] = (counterTheyGive[r] || 0) + 1;
+                        else if ((counterTheyGive[r] || 0) > 0) counterTheyGive[r] = (counterTheyGive[r] || 0) - 1;
+                    } else {
+                        const have = me.resources[r] || 0;
+                        if (isPlus && (counterYouGive[r] || 0) < have) counterYouGive[r] = (counterYouGive[r] || 0) + 1;
+                        else if (!isPlus && (counterYouGive[r] || 0) > 0) counterYouGive[r] = (counterYouGive[r] || 0) - 1;
+                    }
+                    renderCounterCards();
+                });
+            });
+        }
 
         modal.classList.add('active');
 
         const acceptBtn = document.getElementById('btn-accept-trade');
         acceptBtn.disabled = !canAfford;
         acceptBtn.onclick = () => {
-            Game.tradeAccept(tradeId);
+            Game.tradeRespond(tradeId, 'accept');
             modal.classList.remove('active');
         };
 
         document.getElementById('btn-decline-trade').onclick = () => {
+            Game.tradeRespond(tradeId, 'decline');
             modal.classList.remove('active');
         };
 
         document.getElementById('btn-counter-trade').onclick = () => {
             const section = document.getElementById('counter-offer-section');
-            section.style.display = section.style.display === 'none' ? 'block' : 'none';
+            const showing = section.style.display !== 'none';
+            section.style.display = showing ? 'none' : 'block';
             document.getElementById('reject-all-section').style.display = 'none';
+            if (!showing) renderCounterCards();
         };
 
         document.getElementById('btn-send-counter').onclick = () => {
-            const theyGiveRes = theyRes.value;
-            const theyGiveCount = parseInt(counterTheyCount.textContent);
-            const youGiveRes = youRes.value;
-            const youGiveCount = parseInt(counterYouCount.textContent);
-            // Counter-offer: you're offering resources and requesting from them
             const offering = {};
             const requesting = {};
-            offering[youGiveRes] = youGiveCount;
-            requesting[theyGiveRes] = theyGiveCount;
-            // Check we have enough
-            if ((me.resources[youGiveRes] || 0) < youGiveCount) {
-                showNotification(`Not enough ${youGiveRes.charAt(0).toUpperCase() + youGiveRes.slice(1)}`, 'warning');
+            for (const [r, c] of Object.entries(counterYouGive)) { if (c > 0) offering[r] = c; }
+            for (const [r, c] of Object.entries(counterTheyGive)) { if (c > 0) requesting[r] = c; }
+            if (Object.keys(offering).length === 0 || Object.keys(requesting).length === 0) {
+                showNotification('Counter-offer must include both sides', 'warning');
                 return;
             }
+            // Validate resources
+            for (const [r, c] of Object.entries(offering)) {
+                if ((me.resources[r] || 0) < c) {
+                    showNotification(`Not enough ${r.charAt(0).toUpperCase() + r.slice(1)}`, 'warning');
+                    return;
+                }
+            }
+            Game.tradeRespond(tradeId, 'decline');
             Game.tradeOffer(offering, requesting);
             modal.classList.remove('active');
         };
@@ -1407,10 +1592,9 @@
         document.querySelectorAll('.reject-rounds-btn').forEach(btn => {
             btn.onclick = () => {
                 const rounds = parseInt(btn.dataset.rounds);
-                // Calculate the turn number when reject-all expires
-                // Each "round" = one full cycle of all players
                 const playerCount = state.player_order.length;
                 rejectAllUntil = state.turn_number + (rounds * playerCount);
+                Game.tradeRespond(tradeId, 'decline');
                 showNotification(`Auto-declining trades for ${rounds === 999 ? 'the rest of the game' : rounds + ' round(s)'}`, 'info');
                 modal.classList.remove('active');
             };

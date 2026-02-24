@@ -434,7 +434,9 @@ def handle_trade_respond(state: GameState, config: GameConfig, player_id: str,
                          params: dict[str, Any]) -> list[dict[str, Any]]:
     """Record a player's response to a trade offer (accept/decline)."""
     trade_id = params["trade_id"]
-    response = params["response"]
+    raw = params["response"]
+    # Normalize to past tense for consistent state checks
+    response = {"accept": "accepted", "decline": "declined"}.get(raw, raw)
     offer = state.trade_offers[trade_id]
     offer.responses[player_id] = response
     state.add_log("trade_respond", player=player_id, trade_id=trade_id, response=response)

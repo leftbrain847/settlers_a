@@ -578,8 +578,24 @@ async def run_ai_turns(game_id: str):
 
         # After a bot offers a trade, give humans time then let bots respond
         if action.type == "trade_offer":
-            await handle_ai_trade_responses(game_id, delay_for_humans=True)
-            # Cancel any unclaimed trade offers from this bot
+            await handle_ai_trade_responses(game_id)
+            # Finalize the first acceptance, then clean up remaining offers
+            for tid in list(engine.state.trade_offers.keys()):
+                offer = engine.state.trade_offers.get(tid)
+                if not offer or offer.from_player != current:
+                    continue
+                accepter = next(
+                    (pid for pid, r in offer.responses.items() if r == "accepted"),
+                    None,
+                )
+                if accepter:
+                    accept_action = Action(
+                        type="trade_accept", player_id=current,
+                        params={"trade_id": tid, "accepter_id": accepter},
+                    )
+                    engine.do_action(accept_action)
+                    break  # Only finalize one trade
+            # Remove any remaining offers from this bot
             for tid in list(engine.state.trade_offers.keys()):
                 offer = engine.state.trade_offers.get(tid)
                 if offer and offer.from_player == current:

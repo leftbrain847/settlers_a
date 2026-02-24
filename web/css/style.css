@@ -1139,6 +1139,66 @@ body {
     font-weight: bold;
 }
 
+/* Trade response tracking */
+.trade-offer-summary {
+    text-align: center;
+    font-size: 0.9em;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    padding: 8px;
+    background: var(--bg-card);
+    border-radius: 6px;
+}
+.trade-responses-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+.trade-response-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    background: var(--bg-card);
+    border-radius: 6px;
+    font-size: 0.9em;
+}
+.trade-response-row .player-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.trade-response-row .response-status {
+    margin-left: auto;
+    font-weight: 600;
+}
+.trade-response-row .response-status.waiting { color: var(--text-dim); }
+.trade-response-row .response-status.accepted { color: var(--success); }
+.trade-response-row .response-status.declined { color: var(--accent); }
+.trade-response-row .response-status.countered { color: var(--accent2); }
+.trade-response-row .btn-confirm-accepter {
+    margin-left: 6px;
+    padding: 3px 12px;
+    font-size: 0.85em;
+}
+.trade-timer-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 6px;
+}
+.trade-timer-fill {
+    height: 100%;
+    background: var(--accent2);
+    border-radius: 2px;
+    transition: width 1s linear;
+    width: 100%;
+}
+
 /* Winner overlay */
 .winner-overlay {
     display: none;

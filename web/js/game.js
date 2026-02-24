@@ -141,8 +141,14 @@ const Game = (() => {
         sendAction('trade_offer', { offering, requesting });
     }
 
-    function tradeAccept(tradeId) {
-        sendAction('trade_accept', { trade_id: tradeId });
+    function tradeRespond(tradeId, response) {
+        sendAction('trade_respond', { trade_id: tradeId, response });
+    }
+
+    function tradeAccept(tradeId, accepterId) {
+        const params = { trade_id: tradeId };
+        if (accepterId) params.accepter_id = accepterId;
+        sendAction('trade_accept', params);
     }
 
     function discard(resources) {
@@ -231,7 +237,7 @@ const Game = (() => {
         sendAction, rollDice, endTurn,
         buildSettlement, buildCity, buildRoad,
         buyDevCard, playDevCard,
-        tradeBank, tradeOffer, tradeAccept,
+        tradeBank, tradeOffer, tradeRespond, tradeAccept,
         discard, moveRobber, steal, devCardAction,
         enterBuildMode, exitBuildMode, getBuildMode,
         canDoAction, getLegalBuildLocations, getLegalRobberHexes,
