@@ -19,22 +19,22 @@ def load_base_game() -> GameConfig:
     # Resources
     # ---------------------------------------------------------------
     resource_types = {
-        "brick": ResourceType(id="brick", name="Brick", terrain="hills"),
-        "lumber": ResourceType(id="lumber", name="Lumber", terrain="forest"),
-        "ore": ResourceType(id="ore", name="Ore", terrain="mountains"),
-        "grain": ResourceType(id="grain", name="Grain", terrain="fields"),
-        "wool": ResourceType(id="wool", name="Wool", terrain="pasture"),
+        "clay": ResourceType(id="clay", name="Clay", terrain="hills"),
+        "wood": ResourceType(id="wood", name="Wood", terrain="forest"),
+        "rock": ResourceType(id="rock", name="Rock", terrain="mountains"),
+        "wheat": ResourceType(id="wheat", name="Wheat", terrain="fields"),
+        "sheep": ResourceType(id="sheep", name="Sheep", terrain="pasture"),
     }
 
     # ---------------------------------------------------------------
     # Terrains
     # ---------------------------------------------------------------
     terrain_types = {
-        "hills": TerrainType(id="hills", name="Hills", produces="brick", color="#c0392b"),
-        "forest": TerrainType(id="forest", name="Forest", produces="lumber", color="#27ae60"),
-        "mountains": TerrainType(id="mountains", name="Mountains", produces="ore", color="#7f8c8d"),
-        "fields": TerrainType(id="fields", name="Fields", produces="grain", color="#f1c40f"),
-        "pasture": TerrainType(id="pasture", name="Pasture", produces="wool", color="#2ecc71"),
+        "hills": TerrainType(id="hills", name="Clay", produces="clay", color="#c0392b"),
+        "forest": TerrainType(id="forest", name="Wood", produces="wood", color="#27ae60"),
+        "mountains": TerrainType(id="mountains", name="Rock", produces="rock", color="#7f8c8d"),
+        "fields": TerrainType(id="fields", name="Wheat", produces="wheat", color="#f1c40f"),
+        "pasture": TerrainType(id="pasture", name="Sheep", produces="sheep", color="#2ecc71"),
         "desert": TerrainType(id="desert", name="Desert", produces=None, color="#f0e68c"),
     }
 
@@ -45,7 +45,7 @@ def load_base_game() -> GameConfig:
         "settlement": BuildingType(
             id="settlement",
             name="Settlement",
-            cost={"brick": 1, "lumber": 1, "grain": 1, "wool": 1},
+            cost={"clay": 1, "wood": 1, "wheat": 1, "sheep": 1},
             vp=1,
             max_per_player=5,
             placement=PlacementRule(
@@ -59,7 +59,7 @@ def load_base_game() -> GameConfig:
         "city": BuildingType(
             id="city",
             name="City",
-            cost={"ore": 3, "grain": 2},
+            cost={"rock": 3, "wheat": 2},
             vp=2,
             max_per_player=4,
             placement=PlacementRule(
@@ -71,7 +71,7 @@ def load_base_game() -> GameConfig:
         "road": BuildingType(
             id="road",
             name="Road",
-            cost={"brick": 1, "lumber": 1},
+            cost={"clay": 1, "wood": 1},
             vp=0,
             max_per_player=15,
             placement=PlacementRule(
@@ -84,7 +84,7 @@ def load_base_game() -> GameConfig:
         "dev_card": BuildingType(
             id="dev_card",
             name="Development Card",
-            cost={"ore": 1, "grain": 1, "wool": 1},
+            cost={"rock": 1, "wheat": 1, "sheep": 1},
             vp=0,
             max_per_player=99,
             placement=PlacementRule(location_type="none"),
@@ -96,11 +96,11 @@ def load_base_game() -> GameConfig:
     # ---------------------------------------------------------------
     port_types = {
         "generic": PortType(id="generic", name="3:1 Port", resource=None, ratio=3),
-        "brick_port": PortType(id="brick_port", name="Brick Port", resource="brick", ratio=2),
-        "lumber_port": PortType(id="lumber_port", name="Lumber Port", resource="lumber", ratio=2),
-        "ore_port": PortType(id="ore_port", name="Ore Port", resource="ore", ratio=2),
-        "grain_port": PortType(id="grain_port", name="Grain Port", resource="grain", ratio=2),
-        "wool_port": PortType(id="wool_port", name="Wool Port", resource="wool", ratio=2),
+        "clay_port": PortType(id="clay_port", name="Clay Port", resource="clay", ratio=2),
+        "wood_port": PortType(id="wood_port", name="Wood Port", resource="wood", ratio=2),
+        "rock_port": PortType(id="rock_port", name="Rock Port", resource="rock", ratio=2),
+        "wheat_port": PortType(id="wheat_port", name="Wheat Port", resource="wheat", ratio=2),
+        "sheep_port": PortType(id="sheep_port", name="Sheep Port", resource="sheep", ratio=2),
     }
 
     # ---------------------------------------------------------------
@@ -224,11 +224,11 @@ def load_base_game() -> GameConfig:
         number_tokens=[2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12],
         port_counts={
             "generic": 4,
-            "brick_port": 1,
-            "lumber_port": 1,
-            "ore_port": 1,
-            "grain_port": 1,
-            "wool_port": 1,
+            "clay_port": 1,
+            "wood_port": 1,
+            "rock_port": 1,
+            "wheat_port": 1,
+            "sheep_port": 1,
         },
     )
 

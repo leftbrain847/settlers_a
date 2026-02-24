@@ -99,8 +99,11 @@ const BoardRenderer = (() => {
     // Render functions
     // ---------------------------------------------------------------
 
+    let currentConfig = null;
+
     function render(boardState, config, callbacks) {
         if (!svg || !hexGroup) return;
+        currentConfig = config;
 
         // Clear all layers
         hexGroup.innerHTML = '';
@@ -243,7 +246,10 @@ const BoardRenderer = (() => {
             terrainLabel.setAttribute('stroke-width', '3');
             terrainLabel.setAttribute('paint-order', 'stroke');
             terrainLabel.setAttribute('pointer-events', 'none');
-            terrainLabel.textContent = hex.terrain.charAt(0).toUpperCase() + hex.terrain.slice(1);
+            const tName = (currentConfig && currentConfig.terrain_types && currentConfig.terrain_types[hex.terrain])
+                ? currentConfig.terrain_types[hex.terrain].name
+                : hex.terrain.charAt(0).toUpperCase() + hex.terrain.slice(1);
+            terrainLabel.textContent = tName;
             labelGroup.appendChild(terrainLabel);
         }
     }

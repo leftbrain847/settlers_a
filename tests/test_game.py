@@ -379,14 +379,14 @@ def test_bank_trade_with_ports():
     # Give player 1 a generic port (3:1 ratio)
     engine.state.players[p1].ports.append("generic")
     # Give lots of brick
-    engine.state.players[p1].resources["brick"] = 10
+    engine.state.players[p1].resources["clay"] = 10
 
     # Force it to be p1's turn and rolled
     engine.state.current_player_idx = engine.state.player_order.index(p1)
     engine.state.dice_rolled = True
 
     legal = engine.get_legal_actions(p1)
-    bank_trades = [a for a in legal if a["type"] == "trade_bank" and a["give_resource"] == "brick"]
+    bank_trades = [a for a in legal if a["type"] == "trade_bank" and a["give_resource"] == "clay"]
 
     # Should be able to trade brick for other resources
     assert len(bank_trades) > 0
@@ -414,7 +414,7 @@ def test_dev_card_same_turn_rule():
 
     # Set up: give player resources to buy a dev card
     player = engine.state.get_player(p1)
-    player.resources = {"ore": 5, "grain": 5, "wool": 5, "brick": 5, "lumber": 5}
+    player.resources = {"rock": 5, "wheat": 5, "sheep": 5, "clay": 5, "wood": 5}
 
     # Force p1's turn and roll dice
     engine.state.current_player_idx = engine.state.player_order.index(p1)

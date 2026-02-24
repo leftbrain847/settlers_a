@@ -36,11 +36,11 @@
         document.getElementById('setting-dev-monopoly').value = 2;
         document.getElementById('setting-dev-victory-point').value = 5;
         document.getElementById('setting-port-generic').value = 4;
-        document.getElementById('setting-port-brick').value = 1;
-        document.getElementById('setting-port-lumber').value = 1;
-        document.getElementById('setting-port-ore').value = 1;
-        document.getElementById('setting-port-grain').value = 1;
-        document.getElementById('setting-port-wool').value = 1;
+        document.getElementById('setting-port-clay').value = 1;
+        document.getElementById('setting-port-wood').value = 1;
+        document.getElementById('setting-port-rock').value = 1;
+        document.getElementById('setting-port-wheat').value = 1;
+        document.getElementById('setting-port-sheep').value = 1;
         updateRingsLabel();
     });
 
@@ -167,11 +167,11 @@
             },
             port_counts: {
                 generic: parseInt(document.getElementById('setting-port-generic').value) || 0,
-                brick_port: parseInt(document.getElementById('setting-port-brick').value) || 0,
-                lumber_port: parseInt(document.getElementById('setting-port-lumber').value) || 0,
-                ore_port: parseInt(document.getElementById('setting-port-ore').value) || 0,
-                grain_port: parseInt(document.getElementById('setting-port-grain').value) || 0,
-                wool_port: parseInt(document.getElementById('setting-port-wool').value) || 0,
+                clay_port: parseInt(document.getElementById('setting-port-clay').value) || 0,
+                wood_port: parseInt(document.getElementById('setting-port-wood').value) || 0,
+                rock_port: parseInt(document.getElementById('setting-port-rock').value) || 0,
+                wheat_port: parseInt(document.getElementById('setting-port-wheat').value) || 0,
+                sheep_port: parseInt(document.getElementById('setting-port-sheep').value) || 0,
             },
         };
 
@@ -529,16 +529,19 @@
         const config = Game.getConfig();
         const resourceList = config ? Object.keys(config.resource_types) : Object.keys(me.resources);
         const colorMap = {
-            brick: 'var(--brick)', lumber: '#1a7a42', ore: 'var(--ore)',
-            grain: '#c9a800', wool: 'var(--wool)',
+            clay: 'var(--clay)', wood: '#1a7a42', rock: 'var(--rock)',
+            wheat: '#c9a800', sheep: 'var(--sheep)',
         };
 
-        container.innerHTML = resourceList.map(res => `
+        container.innerHTML = resourceList.map(res => {
+            const displayName = res.charAt(0).toUpperCase() + res.slice(1);
+            return `
             <div class="resource-card" style="border-color:${colorMap[res] || 'var(--border)'}">
                 <div class="count" style="color:${colorMap[res] || 'var(--text)'}">${me.resources[res] || 0}</div>
-                <div class="label">${res.slice(0, 3)}</div>
+                <div class="label">${displayName}</div>
             </div>
-        `).join('');
+        `;
+        }).join('');
     }
 
     // ---------------------------------------------------------------
@@ -623,7 +626,7 @@
                     Game.enterBuildMode('settlement');
                     BoardRenderer.highlightIntersections(Game.getLegalBuildLocations('settlement'));
                     renderActions(Game.getState());
-                }, '', costDots({ brick: 1, lumber: 1, grain: 1, wool: 1 }));
+                }, '', costDots({ clay: 1, wood: 1, wheat: 1, sheep: 1 }));
             }
 
             if (Game.getLegalBuildLocations('city').length > 0) {
@@ -631,7 +634,7 @@
                     Game.enterBuildMode('city');
                     BoardRenderer.highlightIntersections(Game.getLegalBuildLocations('city'));
                     renderActions(Game.getState());
-                }, '', costDots({ ore: 3, grain: 2 }));
+                }, '', costDots({ rock: 3, wheat: 2 }));
             }
 
             if (Game.getLegalBuildLocations('road').length > 0) {
@@ -639,12 +642,12 @@
                     Game.enterBuildMode('road');
                     BoardRenderer.highlightEdges(Game.getLegalBuildLocations('road'));
                     renderActions(Game.getState());
-                }, '', costDots({ brick: 1, lumber: 1 }));
+                }, '', costDots({ clay: 1, wood: 1 }));
             }
 
             if (Game.canDoAction('buy_dev_card')) {
                 addActionBtn(container, 'Buy Dev Card', () => Game.buyDevCard(), '',
-                    costDots({ ore: 1, grain: 1, wool: 1 }));
+                    costDots({ rock: 1, wheat: 1, sheep: 1 }));
             }
 
             if (Game.canDoAction('trade_offer')) {
@@ -707,8 +710,8 @@
 
     function costDots(cost) {
         const colorMap = {
-            brick: 'var(--brick)', lumber: '#1a7a42', ore: 'var(--ore)',
-            grain: '#c9a800', wool: 'var(--wool)',
+            clay: 'var(--clay)', wood: '#1a7a42', rock: 'var(--rock)',
+            wheat: '#c9a800', sheep: 'var(--sheep)',
         };
         let html = '<span class="cost">';
         for (const [res, count] of Object.entries(cost)) {
@@ -992,7 +995,7 @@
 
         const selected = {};
         const config = Game.getConfig();
-        const resources = config ? Object.keys(config.resource_types) : ['brick', 'lumber', 'ore', 'grain', 'wool'];
+        const resources = config ? Object.keys(config.resource_types) : ['clay', 'wood', 'rock', 'wheat', 'sheep'];
 
         function renderPicker() {
             picker.innerHTML = resources.map(res => {
@@ -1042,7 +1045,7 @@
         const modal = document.getElementById('monopoly-modal');
         const choices = document.getElementById('monopoly-choices');
         const config = Game.getConfig();
-        const resources = config ? Object.keys(config.resource_types) : ['brick', 'lumber', 'ore', 'grain', 'wool'];
+        const resources = config ? Object.keys(config.resource_types) : ['clay', 'wood', 'rock', 'wheat', 'sheep'];
 
         choices.innerHTML = '';
         for (const res of resources) {
@@ -1059,8 +1062,8 @@
     }
 
     const resColors = {
-        brick: '#c0392b', lumber: '#1a7a42', ore: '#7f8c8d',
-        grain: '#c9a800', wool: '#2ecc71',
+        clay: '#c0392b', wood: '#1a7a42', rock: '#7f8c8d',
+        wheat: '#c9a800', sheep: '#2ecc71',
     };
 
     function showTradeOfferModal() {
@@ -1083,9 +1086,10 @@
                 const card = document.createElement('div');
                 card.className = 'trade-res-card' + (selected > 0 ? ' selected' : '');
                 card.dataset.res = res;
+                const giveDisplayName = res.charAt(0).toUpperCase() + res.slice(1);
                 card.innerHTML = `
                     <div class="res-count">${selected}</div>
-                    <div class="res-name">${res}</div>
+                    <div class="res-name">${giveDisplayName}</div>
                     <div class="res-have">(${have})</div>
                     <div class="trade-pm-btns">
                         <button class="trade-pm-btn minus" data-res="${res}" data-side="give">&#x2212;</button>
@@ -1103,9 +1107,10 @@
                 const card = document.createElement('div');
                 card.className = 'trade-res-card' + (selected > 0 ? ' selected' : '');
                 card.dataset.res = res;
+                const wantDisplayName = res.charAt(0).toUpperCase() + res.slice(1);
                 card.innerHTML = `
                     <div class="res-count">${selected}</div>
-                    <div class="res-name">${res}</div>
+                    <div class="res-name">${wantDisplayName}</div>
                     <div class="trade-pm-btns">
                         <button class="trade-pm-btn minus" data-res="${res}" data-side="want">&#x2212;</button>
                         <button class="trade-pm-btn plus" data-res="${res}" data-side="want">+</button>
@@ -1134,8 +1139,8 @@
             });
 
             // Summaries
-            const giveSummary = Object.entries(give).filter(([, v]) => v > 0).map(([r, c]) => `${c} ${r}`).join(', ');
-            const wantSummary = Object.entries(want).filter(([, v]) => v > 0).map(([r, c]) => `${c} ${r}`).join(', ');
+            const giveSummary = Object.entries(give).filter(([, v]) => v > 0).map(([r, c]) => `${c} ${r.charAt(0).toUpperCase() + r.slice(1)}`).join(', ');
+            const wantSummary = Object.entries(want).filter(([, v]) => v > 0).map(([r, c]) => `${c} ${r.charAt(0).toUpperCase() + r.slice(1)}`).join(', ');
             document.getElementById('trade-give-summary').textContent = giveSummary || 'Click to add';
             document.getElementById('trade-want-summary').textContent = wantSummary || 'Click to add';
         }
@@ -1169,7 +1174,7 @@
 
         function resChips(obj) {
             return Object.entries(obj).filter(([, c]) => c > 0).map(([r, c]) =>
-                `<span class="res-chip" style="color:${resColors[r] || 'var(--text)'}">${c} ${r}</span>`
+                `<span class="res-chip" style="color:${resColors[r] || 'var(--text)'}">${c} ${r.charAt(0).toUpperCase() + r.slice(1)}</span>`
             ).join('');
         }
 

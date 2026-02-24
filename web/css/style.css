@@ -14,11 +14,11 @@
     --border: #2a3a5e;
 
     /* Resource colors */
-    --brick: #c0392b;
-    --lumber: #27ae60;
-    --ore: #7f8c8d;
-    --grain: #f1c40f;
-    --wool: #2ecc71;
+    --clay: #c0392b;
+    --wood: #27ae60;
+    --rock: #7f8c8d;
+    --wheat: #f1c40f;
+    --sheep: #2ecc71;
 }
 
 * {
@@ -633,11 +633,11 @@ body {
     text-align: center;
 }
 
-.resource-badge.brick { background: var(--brick); }
-.resource-badge.lumber { background: #1a7a42; }
-.resource-badge.ore { background: var(--ore); }
-.resource-badge.grain { background: #c9a800; color: #333; }
-.resource-badge.wool { background: var(--wool); }
+.resource-badge.clay { background: var(--clay); }
+.resource-badge.wood { background: #1a7a42; }
+.resource-badge.rock { background: var(--rock); }
+.resource-badge.wheat { background: #c9a800; color: #333; }
+.resource-badge.sheep { background: var(--sheep); }
 
 .player-achievements {
     display: flex;
@@ -1071,23 +1071,23 @@ body {
 }
 
 /* Resource-specific card colors */
-.trade-res-card[data-res="brick"]  { background: #a0341c; border-color: #c0392b; }
-.trade-res-card[data-res="lumber"] { background: #14582e; border-color: #1a7a42; }
-.trade-res-card[data-res="ore"]    { background: #4a545a; border-color: #7f8c8d; }
-.trade-res-card[data-res="grain"]  { background: #8a7200; border-color: #c9a800; }
-.trade-res-card[data-res="wool"]   { background: #1a8a4a; border-color: #2ecc71; }
+.trade-res-card[data-res="clay"]   { background: #a0341c; border-color: #c0392b; }
+.trade-res-card[data-res="wood"]   { background: #14582e; border-color: #1a7a42; }
+.trade-res-card[data-res="rock"]   { background: #4a545a; border-color: #7f8c8d; }
+.trade-res-card[data-res="wheat"]  { background: #8a7200; border-color: #c9a800; }
+.trade-res-card[data-res="sheep"]  { background: #1a8a4a; border-color: #2ecc71; }
 
-.trade-res-card[data-res="brick"]:hover  { border-color: #e74c3c; }
-.trade-res-card[data-res="lumber"]:hover { border-color: #27ae60; }
-.trade-res-card[data-res="ore"]:hover    { border-color: #95a5a6; }
-.trade-res-card[data-res="grain"]:hover  { border-color: #f1c40f; }
-.trade-res-card[data-res="wool"]:hover   { border-color: #2ecc71; }
+.trade-res-card[data-res="clay"]:hover   { border-color: #e74c3c; }
+.trade-res-card[data-res="wood"]:hover   { border-color: #27ae60; }
+.trade-res-card[data-res="rock"]:hover   { border-color: #95a5a6; }
+.trade-res-card[data-res="wheat"]:hover  { border-color: #f1c40f; }
+.trade-res-card[data-res="sheep"]:hover  { border-color: #2ecc71; }
 
-.trade-res-card[data-res="brick"].selected  { border-color: #e74c3c; box-shadow: 0 0 12px rgba(231, 76, 60, 0.5); }
-.trade-res-card[data-res="lumber"].selected { border-color: #27ae60; box-shadow: 0 0 12px rgba(39, 174, 96, 0.5); }
-.trade-res-card[data-res="ore"].selected    { border-color: #bdc3c7; box-shadow: 0 0 12px rgba(149, 165, 166, 0.5); }
-.trade-res-card[data-res="grain"].selected  { border-color: #f1c40f; box-shadow: 0 0 12px rgba(241, 196, 15, 0.5); }
-.trade-res-card[data-res="wool"].selected   { border-color: #2ecc71; box-shadow: 0 0 12px rgba(46, 204, 113, 0.5); }
+.trade-res-card[data-res="clay"].selected   { border-color: #e74c3c; box-shadow: 0 0 12px rgba(231, 76, 60, 0.5); }
+.trade-res-card[data-res="wood"].selected   { border-color: #27ae60; box-shadow: 0 0 12px rgba(39, 174, 96, 0.5); }
+.trade-res-card[data-res="rock"].selected   { border-color: #bdc3c7; box-shadow: 0 0 12px rgba(149, 165, 166, 0.5); }
+.trade-res-card[data-res="wheat"].selected  { border-color: #f1c40f; box-shadow: 0 0 12px rgba(241, 196, 15, 0.5); }
+.trade-res-card[data-res="sheep"].selected  { border-color: #2ecc71; box-shadow: 0 0 12px rgba(46, 204, 113, 0.5); }
 
 .trade-summary {
     text-align: center;

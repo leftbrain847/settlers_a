@@ -107,7 +107,7 @@ def _apply_board_size(config: GameConfig, num_rings: int):
     # Generic = ~44%, each specific = ~11%
     num_generic = max(1, round(target_ports * 4 / 9))
     remaining = target_ports - num_generic
-    specific_ports = ["brick_port", "lumber_port", "ore_port", "grain_port", "wool_port"]
+    specific_ports = ["clay_port", "wood_port", "rock_port", "wheat_port", "sheep_port"]
     per_specific = max(1, remaining // len(specific_ports))
 
     port_counts = {"generic": num_generic}

@@ -373,14 +373,14 @@ class SmartStrategy(AIStrategy):
         goals = []
         # Cities are always highest priority if we have settlements to upgrade
         if settlement_count > 0:
-            goals.append({"ore": 3, "grain": 2})
+            goals.append({"rock": 3, "wheat": 2})
         # Settlements if we have room to expand
         if settlement_count + city_count < 5:
-            goals.append({"brick": 1, "lumber": 1, "grain": 1, "wool": 1})
+            goals.append({"clay": 1, "wood": 1, "wheat": 1, "sheep": 1})
         # Road if we need to reach new spots
-        goals.append({"brick": 1, "lumber": 1})
+        goals.append({"clay": 1, "wood": 1})
         # Dev card as fallback
-        goals.append({"ore": 1, "grain": 1, "wool": 1})
+        goals.append({"rock": 1, "wheat": 1, "sheep": 1})
 
         for goal in goals:
             # Find resources we're missing for this goal
@@ -519,7 +519,7 @@ class SmartStrategy(AIStrategy):
         # Find what we need most for city (ore, grain) or settlement
         needs: dict[str, int] = {}
         # Try to complete a city first
-        city_cost = {"ore": 3, "grain": 2}
+        city_cost = {"rock": 3, "wheat": 2}
         for res, need in city_cost.items():
             deficit = need - player.resources.get(res, 0)
             if deficit > 0:
