@@ -441,6 +441,17 @@ async def handle_ai_trade_responses(game_id: str, delay_for_humans: bool = True)
                     await broadcast_state(game_id)
                     await asyncio.sleep(0.5)
                 break  # Trade completed, move on
+            else:
+                # Bot doesn't want to accept — try a counter-offer (once)
+                counter = strategy.generate_counter_offer(
+                    engine, pid, offer.offering, offer.requesting, offer.from_player)
+                if counter:
+                    counter_action = Action(type="trade_offer", player_id=pid,
+                                          params=counter)
+                    result = engine.do_action(counter_action)
+                    if result.success:
+                        await broadcast_state(game_id)
+                        await asyncio.sleep(1)
 
 
 async def run_ai_turns(game_id: str):

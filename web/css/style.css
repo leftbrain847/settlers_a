@@ -1122,6 +1122,15 @@ body {
     justify-content: center;
 }
 
+.counter-res-select {
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.9em;
+}
+
 .incoming-trade-side .res-chip {
     background: var(--bg-card);
     padding: 4px 10px;

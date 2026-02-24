@@ -1166,11 +1166,26 @@
         };
     }
 
+    // Reject-all state: { until: turnNumber } — auto-decline until this turn
+    let rejectAllUntil = 0;
+
     function showIncomingTradeModal(tradeId, offer, state) {
+        // Auto-decline if reject-all is active
+        if (rejectAllUntil > 0 && state.turn_number < rejectAllUntil) {
+            // Silently decline
+            return;
+        }
+        // Reset reject-all if expired
+        if (state.turn_number >= rejectAllUntil) {
+            rejectAllUntil = 0;
+        }
+
         const modal = document.getElementById('incoming-trade-modal');
         const display = document.getElementById('incoming-trade-display');
         const offerer = state.players[offer.from_player];
         const me = state.players[Game.getPlayerId()];
+        const config = Game.getConfig();
+        const resources = config ? Object.keys(config.resource_types) : ['clay', 'wood', 'rock', 'wheat', 'sheep'];
 
         function resChips(obj) {
             return Object.entries(obj).filter(([, c]) => c > 0).map(([r, c]) =>
@@ -1186,7 +1201,7 @@
                 if ((me.resources[res] || 0) < amount) {
                     canAfford = false;
                     const deficit = amount - (me.resources[res] || 0);
-                    missingText += `${deficit} ${res} `;
+                    missingText += `${deficit} ${res.charAt(0).toUpperCase() + res.slice(1)} `;
                 }
             }
         }
@@ -1204,6 +1219,48 @@
             ${!canAfford ? `<div style="color:var(--accent);font-size:0.85em;text-align:center;margin-top:8px;">You don't have enough resources (need ${missingText.trim()})</div>` : ''}
         `;
 
+        // Reset counter-offer and reject-all sections
+        document.getElementById('counter-offer-section').style.display = 'none';
+        document.getElementById('reject-all-section').style.display = 'none';
+
+        // Setup counter-offer dropdowns
+        const theyRes = document.getElementById('counter-they-res');
+        const youRes = document.getElementById('counter-you-res');
+        theyRes.innerHTML = '';
+        youRes.innerHTML = '';
+        for (const res of resources) {
+            const name = res.charAt(0).toUpperCase() + res.slice(1);
+            theyRes.innerHTML += `<option value="${res}">${name}</option>`;
+            youRes.innerHTML += `<option value="${res}">${name}</option>`;
+        }
+        // Default to the original trade resources
+        const origTheyRes = Object.keys(offer.offering).find(k => offer.offering[k] > 0) || resources[0];
+        const origYouRes = Object.keys(offer.requesting).find(k => offer.requesting[k] > 0) || resources[0];
+        theyRes.value = origTheyRes;
+        youRes.value = origYouRes;
+        const counterTheyCount = document.getElementById('counter-they-count');
+        const counterYouCount = document.getElementById('counter-you-count');
+        counterTheyCount.textContent = offer.offering[origTheyRes] || 1;
+        counterYouCount.textContent = offer.requesting[origYouRes] || 1;
+
+        // Counter +/- buttons
+        document.getElementById('counter-they-minus').onclick = () => {
+            const v = parseInt(counterTheyCount.textContent);
+            if (v > 1) counterTheyCount.textContent = v - 1;
+        };
+        document.getElementById('counter-they-plus').onclick = () => {
+            const v = parseInt(counterTheyCount.textContent);
+            counterTheyCount.textContent = v + 1;
+        };
+        document.getElementById('counter-you-minus').onclick = () => {
+            const v = parseInt(counterYouCount.textContent);
+            if (v > 1) counterYouCount.textContent = v - 1;
+        };
+        document.getElementById('counter-you-plus').onclick = () => {
+            const v = parseInt(counterYouCount.textContent);
+            counterYouCount.textContent = v + 1;
+        };
+
         modal.classList.add('active');
 
         const acceptBtn = document.getElementById('btn-accept-trade');
@@ -1216,6 +1273,49 @@
         document.getElementById('btn-decline-trade').onclick = () => {
             modal.classList.remove('active');
         };
+
+        document.getElementById('btn-counter-trade').onclick = () => {
+            const section = document.getElementById('counter-offer-section');
+            section.style.display = section.style.display === 'none' ? 'block' : 'none';
+            document.getElementById('reject-all-section').style.display = 'none';
+        };
+
+        document.getElementById('btn-send-counter').onclick = () => {
+            const theyGiveRes = theyRes.value;
+            const theyGiveCount = parseInt(counterTheyCount.textContent);
+            const youGiveRes = youRes.value;
+            const youGiveCount = parseInt(counterYouCount.textContent);
+            // Counter-offer: you're offering resources and requesting from them
+            const offering = {};
+            const requesting = {};
+            offering[youGiveRes] = youGiveCount;
+            requesting[theyGiveRes] = theyGiveCount;
+            // Check we have enough
+            if ((me.resources[youGiveRes] || 0) < youGiveCount) {
+                showNotification(`Not enough ${youGiveRes.charAt(0).toUpperCase() + youGiveRes.slice(1)}`, 'warning');
+                return;
+            }
+            Game.tradeOffer(offering, requesting);
+            modal.classList.remove('active');
+        };
+
+        document.getElementById('btn-reject-all-trades').onclick = () => {
+            const section = document.getElementById('reject-all-section');
+            section.style.display = section.style.display === 'none' ? 'block' : 'none';
+            document.getElementById('counter-offer-section').style.display = 'none';
+        };
+
+        document.querySelectorAll('.reject-rounds-btn').forEach(btn => {
+            btn.onclick = () => {
+                const rounds = parseInt(btn.dataset.rounds);
+                // Calculate the turn number when reject-all expires
+                // Each "round" = one full cycle of all players
+                const playerCount = state.player_order.length;
+                rejectAllUntil = state.turn_number + (rounds * playerCount);
+                showNotification(`Auto-declining trades for ${rounds === 999 ? 'the rest of the game' : rounds + ' round(s)'}`, 'info');
+                modal.classList.remove('active');
+            };
+        });
     }
 
     // Settings viewer

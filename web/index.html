@@ -284,9 +284,52 @@
     <div class="modal trade-modal">
         <h2>Incoming Trade</h2>
         <div class="incoming-trade-display" id="incoming-trade-display"></div>
-        <div style="display:flex; gap:10px; margin-top:15px;">
+
+        <!-- Counter-offer builder (hidden by default) -->
+        <div id="counter-offer-section" style="display:none; margin-top:12px;">
+            <div style="font-size:0.9em;color:var(--text-dim);margin-bottom:8px;text-align:center;">Adjust the trade:</div>
+            <div class="trade-builder">
+                <div class="trade-side trade-give-side">
+                    <div class="trade-side-label">They Give</div>
+                    <div style="display:flex;gap:6px;align-items:center;justify-content:center;">
+                        <button class="trade-pm-btn minus" id="counter-they-minus">&#x2212;</button>
+                        <span id="counter-they-count" style="font-size:1.2em;font-weight:bold;min-width:24px;text-align:center;">1</span>
+                        <button class="trade-pm-btn plus" id="counter-they-plus">+</button>
+                        <select id="counter-they-res" class="counter-res-select"></select>
+                    </div>
+                </div>
+                <div class="trade-arrow">&#x21C4;</div>
+                <div class="trade-side trade-want-side">
+                    <div class="trade-side-label">You Give</div>
+                    <div style="display:flex;gap:6px;align-items:center;justify-content:center;">
+                        <button class="trade-pm-btn minus" id="counter-you-minus">&#x2212;</button>
+                        <span id="counter-you-count" style="font-size:1.2em;font-weight:bold;min-width:24px;text-align:center;">1</span>
+                        <button class="trade-pm-btn plus" id="counter-you-plus">+</button>
+                        <select id="counter-you-res" class="counter-res-select"></select>
+                    </div>
+                </div>
+            </div>
+            <div style="text-align:center;margin-top:10px;">
+                <button class="btn btn-primary" id="btn-send-counter" style="padding:8px 20px;">Send Counter-Offer</button>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:15px; flex-wrap:wrap; justify-content:center;" id="incoming-trade-buttons">
             <button class="btn btn-primary" id="btn-accept-trade">Accept</button>
+            <button class="btn btn-secondary" id="btn-counter-trade">Counter</button>
             <button class="btn btn-secondary" id="btn-decline-trade">Decline</button>
+            <button class="btn btn-secondary" id="btn-reject-all-trades" style="font-size:0.85em;">Reject All</button>
+        </div>
+
+        <!-- Reject All confirmation -->
+        <div id="reject-all-section" style="display:none; margin-top:10px; text-align:center;">
+            <div style="font-size:0.9em;color:var(--text-dim);margin-bottom:6px;">Auto-decline trades for how many rounds?</div>
+            <div style="display:flex;gap:8px;justify-content:center;">
+                <button class="btn btn-small btn-secondary reject-rounds-btn" data-rounds="1">1</button>
+                <button class="btn btn-small btn-secondary reject-rounds-btn" data-rounds="3">3</button>
+                <button class="btn btn-small btn-secondary reject-rounds-btn" data-rounds="5">5</button>
+                <button class="btn btn-small btn-secondary reject-rounds-btn" data-rounds="999">All Game</button>
+            </div>
         </div>
     </div>
 </div>

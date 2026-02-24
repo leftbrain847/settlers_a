@@ -625,3 +625,31 @@ class SmartStrategy(AIStrategy):
         if get_total == give_total:
             return random.random() < 0.4
         return False
+
+    def generate_counter_offer(self, engine: GameEngine, player_id: str,
+                               offering: dict[str, int], requesting: dict[str, int],
+                               from_player: str) -> Optional[dict]:
+        """Generate a counter-offer if we don't like the original trade.
+
+        Returns {"offering": {...}, "requesting": {...}} or None.
+        Only called when evaluate_trade returned False.
+        """
+        player = engine.state.get_player(player_id)
+
+        # Only counter if we have something the other player wants
+        # Simple approach: keep the resource types but adjust amounts to be fair (1:1)
+        they_give_res = max(offering, key=offering.get) if offering else None
+        they_want_res = max(requesting, key=requesting.get) if requesting else None
+        if not they_give_res or not they_want_res:
+            return None
+
+        # We want what they're offering, and we have what they want
+        we_have = player.resources.get(they_want_res, 0)
+        if we_have < 1:
+            return None  # Can't counter if we don't have what they want
+
+        # Counter: offer 1:1 trade of the same resource types
+        return {
+            "offering": {they_want_res: 1},
+            "requesting": {they_give_res: 1},
+        }
