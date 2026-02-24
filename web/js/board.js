@@ -137,11 +137,15 @@ const BoardRenderer = (() => {
             drawHex(hex, callbacks);
         }
 
-        // Draw ports
+        // Draw ports — deduplicate pairs so each port renders once at midpoint
+        const drawnPortPairs = new Set();
         for (const [iid, inter] of Object.entries(intersections)) {
-            if (inter.port) {
-                drawPort(iid, inter, config);
-            }
+            if (!inter.port) continue;
+            // Find the paired intersection (same port type, adjacent coastal)
+            const pairKey = findPortPairKey(iid, inter.port, intersections, boardState);
+            if (drawnPortPairs.has(pairKey)) continue;
+            drawnPortPairs.add(pairKey);
+            drawPort(iid, inter, config, intersections, boardState);
         }
 
         // Draw edges
@@ -373,23 +377,76 @@ const BoardRenderer = (() => {
         robberGroup.appendChild(head);
     }
 
-    function drawPort(iid, inter, config) {
-        // Hide port labels on very large boards (>8 rings)
-        if (numRings > 8) return;
+    function findPortPairKey(iid, portType, intersections, boardState) {
+        // Find the adjacent intersection that shares the same port type
+        const iidNum = parseInt(iid);
+        const hexIntersections = boardState.hex_intersections || {};
+        // Look through adjacency: find another intersection with same port
+        for (const [otherIid, otherInter] of Object.entries(intersections)) {
+            if (otherIid === iid) continue;
+            if (otherInter.port !== portType) continue;
+            // Check if they share an edge (are adjacent)
+            const a = Math.min(iidNum, parseInt(otherIid));
+            const b = Math.max(iidNum, parseInt(otherIid));
+            // Check adjacency via edges in boardState
+            for (const [eid, edge] of Object.entries(boardState.edges || {})) {
+                const [ea, eb] = edge.intersections;
+                if ((ea === a && eb === b) || (ea === b && eb === a)) {
+                    return `${a}-${b}`;
+                }
+            }
+        }
+        // No pair found — use single intersection key
+        return `single-${iid}`;
+    }
 
-        const { x, y } = intersectionToPixel(inter.q, inter.r, parseInt(iid));
+    function drawPort(iid, inter, config, intersections, boardState) {
         const portConfig = config.port_types ? config.port_types[inter.port] : null;
         if (!portConfig) return;
 
+        // Find the paired intersection for midpoint rendering
+        const iidNum = parseInt(iid);
+        let px, py;
+        const pos1 = intersectionToPixel(inter.q, inter.r, iidNum);
+        let pairFound = false;
+        for (const [otherIid, otherInter] of Object.entries(intersections)) {
+            if (otherIid === iid || otherInter.port !== inter.port) continue;
+            const otherId = parseInt(otherIid);
+            const a = Math.min(iidNum, otherId), b = Math.max(iidNum, otherId);
+            for (const [eid, edge] of Object.entries(boardState.edges || {})) {
+                const [ea, eb] = edge.intersections;
+                if ((ea === a && eb === b) || (ea === b && eb === a)) {
+                    const pos2 = intersectionToPixel(otherInter.q, otherInter.r, otherId);
+                    px = (pos1.x + pos2.x) / 2;
+                    py = (pos1.y + pos2.y) / 2;
+                    pairFound = true;
+                    break;
+                }
+            }
+            if (pairFound) break;
+        }
+        if (!pairFound) {
+            px = pos1.x;
+            py = pos1.y;
+        }
+
+        // Push label outward from board center
+        const centerX = 0, centerY = 0;
+        const dx = px - centerX, dy = py - centerY;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
         const scale = HEX_SIZE / DEFAULT_HEX_SIZE;
-        const portFontSize = Math.max(5, Math.round(11 * scale));
+        const pushDist = Math.max(8, Math.round(18 * scale));
+        px += (dx / dist) * pushDist;
+        py += (dy / dist) * pushDist;
+
+        const portFontSize = Math.max(4, Math.round(10 * scale));
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', x);
-        text.setAttribute('y', y - Math.round(16 * scale));
+        text.setAttribute('x', px);
+        text.setAttribute('y', py);
         text.setAttribute('font-size', portFontSize);
         text.classList.add('port-indicator');
         const label = portConfig.resource
-            ? `${portConfig.ratio}:1 ${portConfig.resource.charAt(0).toUpperCase() + portConfig.resource.slice(1, 3)}`
+            ? `${portConfig.ratio}:1 ${portConfig.resource.charAt(0).toUpperCase() + portConfig.resource.slice(1)}`
             : `${portConfig.ratio}:1`;
         text.textContent = label;
         portGroup.appendChild(text);
