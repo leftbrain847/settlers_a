@@ -50,21 +50,32 @@
         },
     };
 
-    // Terrain color sets per theme (hills, forest, mountains, fields, pasture, desert)
+    // ---------- Per-theme color palettes ----------
+    // Each theme defines terrain hex fills, resource UI colors, and player colors.
+    // Terrain and resource colors are linked: the hex tile color for "hills" matches
+    // the --clay variable so the board and sidebar feel like one unified palette.
+    //
+    // Design goal: you should be able to glance at a screenshot and instantly
+    // know which theme is active. No two themes share the same hue mapping.
+
+    // Terrain hex fill colors (drawn on the SVG board)
     const themeTerrain = {
-        midnight: null,  // use config defaults
-        ocean:    { hills: '#a85232', forest: '#1a6b4a', mountains: '#5a7a8a', fields: '#c8a820', pasture: '#18a060', desert: '#d8c878' },
-        forest:   { hills: '#a0522d', forest: '#355e3b', mountains: '#5a6e5a', fields: '#bfa04a', pasture: '#4a7c59', desert: '#c8b97a' },
-        sunset:   { hills: '#cd5c45', forest: '#5a8a50', mountains: '#9a8070', fields: '#daa520', pasture: '#6aaa5a', desert: '#e8d8a0' },
-        slate:    { hills: '#8b4a5a', forest: '#3a7a6a', mountains: '#6a6a8a', fields: '#b8960a', pasture: '#4a8a6a', desert: '#a0a0b0' },
-        nord:     { hills: '#bf616a', forest: '#a3be8c', mountains: '#81a1c1', fields: '#ebcb8b', pasture: '#8fbcbb', desert: '#d8dee9' },
+        midnight: null,  // use server defaults: red clay, green wood, gray rock, gold wheat, emerald sheep, tan desert
+        // Ocean: coral reef, deep teal forest, navy mountains, sandy gold, turquoise pastures, bright sand
+        ocean:    { hills: '#FF7F6B', forest: '#006D6F', mountains: '#344E6A', fields: '#D4A030', pasture: '#20B2AA', desert: '#FFF0D0' },
+        // Forest: burnt orange clay, deep pine, warm stone, harvest gold, olive meadow, dry straw
+        forest:   { hills: '#CC5500', forest: '#2D4A22', mountains: '#7A6A5A', fields: '#CC8800', pasture: '#6B7A35', desert: '#D8C89A' },
+        // Sunset: hot pink clay, deep jade forest, dusty purple mountains, bright orange, spring green, warm peach
+        sunset:   { hills: '#D83060', forest: '#0A7A58', mountains: '#7A5A80', fields: '#E89020', pasture: '#38A848', desert: '#FFE0C0' },
+        // Slate: wine red, cool jade, blue-slate mountains, bronze, teal pasture, silver sand
+        slate:    { hills: '#8A4050', forest: '#2A7A68', mountains: '#5A5A8A', fields: '#9A8020', pasture: '#3A8A7A', desert: '#B0B0C8' },
+        // Nord: official Nord palette — salmon, sage, steel blue, warm tan, frost teal, snow
+        nord:     { hills: '#BF616A', forest: '#A3BE8C', mountains: '#81A1C1', fields: '#EBCB8B', pasture: '#8FBCBB', desert: '#D8DEE9' },
     };
 
-    // Player color palettes — each theme has 6 distinct, harmonious colors.
-    // Designed so every palette feels unique, not just a tint of the same hues.
+    // Player piece colors — each palette tells a different story
     const themePlayerColors = {
-        // Midnight: bold primaries (server defaults)
-        midnight: null,
+        midnight: null,  // server defaults: red, blue, white, orange, purple, teal
         // Ocean: tropical reef — coral, turquoise, sand, deep violet, hot pink, lime
         ocean:    ['#FF6B6B', '#00CEC9', '#FFEAA7', '#6C5CE7', '#FD79A8', '#55EFC4'],
         // Forest: earthy naturals — terracotta, teal, goldenrod, plum, olive, rust
@@ -77,15 +88,15 @@
         nord:     ['#BF616A', '#5E81AC', '#ECEFF4', '#D08770', '#B48EAD', '#88C0D0'],
     };
 
-    // Resource colors per theme: [color, dimColor] for each resource.
-    // Midnight uses CSS defaults; other themes have curated resource palettes.
+    // Resource UI colors [bright, dim] — matched to terrain hex fills above so
+    // the "Clay" resource card looks like the "Hills" hex on the board.
     const themeResourceColors = {
-        midnight: null,
-        ocean:    { clay: ['#d35430', '#9a3a20'], wood: ['#1a9a5a', '#126840'], rock: ['#6090a0', '#3a6070'], wheat: ['#d4a820', '#957010'], sheep: ['#20b870', '#147a48'] },
-        forest:   { clay: ['#a0522d', '#6e3820'], wood: ['#355e3b', '#234028'], rock: ['#5a6e5a', '#3a4a3a'], wheat: ['#bfa04a', '#806830'], sheep: ['#4a7c59', '#305038'] },
-        sunset:   { clay: ['#e06040', '#a84030'], wood: ['#4a9050', '#2e6030'], rock: ['#9a7570', '#6a4a48'], wheat: ['#daa520', '#957010'], sheep: ['#4ab060', '#2a7838'] },
-        slate:    { clay: ['#c05068', '#803848'], wood: ['#3aaa8a', '#207060'], rock: ['#7070a0', '#4a4a70'], wheat: ['#c0a030', '#806820'], sheep: ['#40a080', '#286850'] },
-        nord:     { clay: ['#bf616a', '#8a3a42'], wood: ['#a3be8c', '#6a8a5a'], rock: ['#81a1c1', '#506a8a'], wheat: ['#ebcb8b', '#a08850'], sheep: ['#8fbcbb', '#5a8a88'] },
+        midnight: null,  // CSS defaults
+        ocean:    { clay: ['#FF7F6B', '#B85A48'], wood: ['#009A9A', '#006060'], rock: ['#4A6A8A', '#304860'], wheat: ['#D4A030', '#906A18'], sheep: ['#20B2AA', '#147A72'] },
+        forest:   { clay: ['#CC5500', '#8A3A00'], wood: ['#3A6030', '#243E1A'], rock: ['#7A6A5A', '#504538'], wheat: ['#CC8800', '#8A5A00'], sheep: ['#6B7A35', '#485220'] },
+        sunset:   { clay: ['#D83060', '#901838'], wood: ['#0A7A58', '#065038'], rock: ['#7A5A80', '#503858'], wheat: ['#E89020', '#A06010'], sheep: ['#38A848', '#207030'] },
+        slate:    { clay: ['#8A4050', '#5A2830'], wood: ['#2A7A68', '#185048'], rock: ['#5A5A8A', '#3A3A60'], wheat: ['#9A8020', '#685510'], sheep: ['#3A8A7A', '#205A50'] },
+        nord:     { clay: ['#BF616A', '#8A3A42'], wood: ['#A3BE8C', '#6A8A5A'], rock: ['#81A1C1', '#506A8A'], wheat: ['#EBCB8B', '#A08850'], sheep: ['#8FBCBB', '#5A8A88'] },
     };
 
     let currentThemePlayerColors = null;
