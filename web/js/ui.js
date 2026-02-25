@@ -1185,6 +1185,7 @@
     // Track the trade offer we sent (for response display)
     let activeSentTradeId = null;
     let tradeTimerInterval = null;
+    let incomingTradeTimerInterval = null;
 
     function showTradeOfferModal() {
         const modal = document.getElementById('trade-offer-modal');
@@ -1346,7 +1347,9 @@
         fill.style.width = '0%';
 
         tradeTimerInterval = setTimeout(() => {
-            // Timer expired — trade stays open but timer is done
+            // Timer expired — auto-dismiss the sent trade modal
+            document.getElementById('trade-offer-modal').classList.remove('active');
+            activeSentTradeId = null;
         }, seconds * 1000);
     }
 
@@ -1542,16 +1545,37 @@
 
         modal.classList.add('active');
 
+        // Start incoming trade timer — auto-declines when it expires
+        if (incomingTradeTimerInterval) clearTimeout(incomingTradeTimerInterval);
+        const incomingTimerSec = (config && config.trade_rules && config.trade_rules.trade_timer) || 10;
+        const inFill = document.getElementById('incoming-trade-timer-fill');
+        inFill.style.transition = 'none';
+        inFill.style.width = '100%';
+        inFill.offsetHeight; // force reflow
+        inFill.style.transition = `width ${incomingTimerSec}s linear`;
+        inFill.style.width = '0%';
+        incomingTradeTimerInterval = setTimeout(() => {
+            if (modal.classList.contains('active')) {
+                Game.tradeRespond(tradeId, 'decline');
+                modal.classList.remove('active');
+            }
+            incomingTradeTimerInterval = null;
+        }, incomingTimerSec * 1000);
+
         const acceptBtn = document.getElementById('btn-accept-trade');
         acceptBtn.disabled = !canAfford;
         acceptBtn.onclick = () => {
             Game.tradeRespond(tradeId, 'accept');
             modal.classList.remove('active');
+            clearTimeout(incomingTradeTimerInterval);
+            incomingTradeTimerInterval = null;
         };
 
         document.getElementById('btn-decline-trade').onclick = () => {
             Game.tradeRespond(tradeId, 'decline');
             modal.classList.remove('active');
+            clearTimeout(incomingTradeTimerInterval);
+            incomingTradeTimerInterval = null;
         };
 
         document.getElementById('btn-counter-trade').onclick = () => {
@@ -1581,6 +1605,8 @@
             Game.tradeRespond(tradeId, 'decline');
             Game.tradeOffer(offering, requesting);
             modal.classList.remove('active');
+            clearTimeout(incomingTradeTimerInterval);
+            incomingTradeTimerInterval = null;
         };
 
         document.getElementById('btn-reject-all-trades').onclick = () => {
