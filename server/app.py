@@ -467,7 +467,8 @@ async def handle_ai_trade_responses(game_id: str):
                 result = engine.do_action(respond_action)
                 if result.success:
                     await broadcast_state(game_id)
-                    await asyncio.sleep(0.8)
+                    if has_humans:
+                        await asyncio.sleep(0.8)
             else:
                 # Bot responds with "decline"
                 respond_action = Action(type="trade_respond", player_id=pid,
@@ -486,10 +487,16 @@ async def handle_ai_trade_responses(game_id: str):
                         offer.counter_ids.append(new_tid)
                         offer.responses[pid] = "countered"
                         await broadcast_state(game_id)
-                        await asyncio.sleep(1)
+                        if has_humans:
+                            await asyncio.sleep(1)
                 else:
                     await broadcast_state(game_id)
-                    await asyncio.sleep(0.5)
+                    if has_humans:
+                        await asyncio.sleep(0.5)
+
+    # Broadcast final state so client sees all responses at once (for bot-only games)
+    if not has_humans:
+        await broadcast_state(game_id)
 
 
 async def run_ai_turns(game_id: str):

@@ -41,8 +41,8 @@
         ocean:  { hills: '#FF7F6B', forest: '#8B6842', mountains: '#7A8E99', fields: '#D8C4A0', pasture: '#20B2AA', desert: '#FFF0D0' },
         // Nordic: official Nord palette — salmon, sage, steel blue, warm tan, frost teal, snow
         nord:   { hills: '#BF616A', forest: '#A3BE8C', mountains: '#81A1C1', fields: '#EBCB8B', pasture: '#8FBCBB', desert: '#D8DEE9' },
-        // Pastel: soft warm tones — mountains use picture renderer (see board.js)
-        pastel: { hills: '#E8A890', forest: '#90C878', mountains: '#8A9EA8', fields: '#F0D880', pasture: '#A8D8A0', desert: '#F0E0B8' },
+        // Pastel: soft warm tones — brighter wood/wheat, simple grey rock
+        pastel: { hills: '#E8A890', forest: '#80D868', mountains: '#B8C4CC', fields: '#F8E860', pasture: '#A8D8A0', desert: '#F0E0B8' },
     };
 
     // Player piece colors — each palette tells a different story
@@ -62,8 +62,8 @@
         ocean:  { clay: ['#FF7F6B', '#B85A48'], wood: ['#8B6842', '#5E4528'], rock: ['#7A8E99', '#506070'], wheat: ['#D8C4A0', '#A09070'], sheep: ['#20B2AA', '#147A72'] },
         // Nordic: matched to Nord terrain palette
         nord:   { clay: ['#BF616A', '#8A3A42'], wood: ['#A3BE8C', '#6A8A5A'], rock: ['#81A1C1', '#506A8A'], wheat: ['#EBCB8B', '#A08850'], sheep: ['#8FBCBB', '#5A8A88'] },
-        // Pastel: matched to soft terrain palette
-        pastel: { clay: ['#E8A890', '#C07860'], wood: ['#90C878', '#608850'], rock: ['#8A9EA8', '#5A7080'], wheat: ['#F0D880', '#B0A040'], sheep: ['#A8D8A0', '#68A870'] },
+        // Pastel: matched to soft terrain palette — brighter wood/wheat, grey rock
+        pastel: { clay: ['#E8A890', '#C07860'], wood: ['#80D868', '#58A840'], rock: ['#B8C4CC', '#808C98'], wheat: ['#F8E860', '#C0B030'], sheep: ['#A8D8A0', '#68A870'] },
     };
 
     let currentThemePlayerColors = null;
@@ -459,6 +459,21 @@
         renderLog(state);
         checkWinner(state);
         // Update proposer's trade response display if active
+        // If the modal is open but we haven't found our trade ID yet (async state),
+        // scan the current state for it
+        if (!activeSentTradeId && document.getElementById('trade-offer-modal').classList.contains('active')
+            && document.getElementById('trade-responses-section').style.display !== 'none') {
+            const st = Game.getState();
+            const myId = Game.getPlayerId();
+            if (st && st.trade_offers) {
+                for (const [tid, offer] of Object.entries(st.trade_offers)) {
+                    if (offer.from_player === myId) {
+                        activeSentTradeId = tid;
+                        break;
+                    }
+                }
+            }
+        }
         if (activeSentTradeId) updateTradeResponsesDisplay();
     }
 

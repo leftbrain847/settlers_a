@@ -202,20 +202,16 @@ const BoardRenderer = (() => {
     function drawHex(hex, callbacks) {
         const { x, y } = hexToPixel(hex.q, hex.r);
 
-        if (pastelMode && hex.terrain === 'mountains') {
-            drawMountainsHex(hexGroup, x, y, hex, callbacks);
-        } else {
-            const color = getTerrainColor(hex.terrain);
-            const polygon = document.createElementNS(NS, 'polygon');
-            polygon.setAttribute('points', hexPointsString(x, y));
-            polygon.setAttribute('fill', color);
-            polygon.classList.add('hex-tile');
-            polygon.dataset.hexId = hex.id;
-            if (callbacks && callbacks.onHexClick) {
-                polygon.addEventListener('click', () => callbacks.onHexClick(hex.id));
-            }
-            hexGroup.appendChild(polygon);
+        const color = getTerrainColor(hex.terrain);
+        const polygon = document.createElementNS(NS, 'polygon');
+        polygon.setAttribute('points', hexPointsString(x, y));
+        polygon.setAttribute('fill', color);
+        polygon.classList.add('hex-tile');
+        polygon.dataset.hexId = hex.id;
+        if (callbacks && callbacks.onHexClick) {
+            polygon.addEventListener('click', () => callbacks.onHexClick(hex.id));
         }
+        hexGroup.appendChild(polygon);
 
         // Number token — scale sizes for large boards
         if (hex.number_token) {
