@@ -11,43 +11,20 @@
     // ---------------------------------------------------------------
     // Theme palettes
     // ---------------------------------------------------------------
+    // Shared neutral dark backgrounds — no colored tinting.
+    // Themes differ through accent, terrain, resource, and player colors only.
+    const neutralBg = {
+        '--bg': '#1a1a2e', '--bg-panel': '#16213e', '--bg-card': '#0f3460',
+        '--text': '#e0e0e0', '--text-dim': '#8899aa', '--border': '#2a3a5e',
+        '--board-bg': 'radial-gradient(ellipse at center, #0d2147 0%, #091428 60%, #050d1a 100%)',
+    };
     const themes = {
-        midnight: {
-            '--bg': '#1a1a2e', '--bg-panel': '#16213e', '--bg-card': '#0f3460',
-            '--text': '#e0e0e0', '--text-dim': '#8899aa', '--accent': '#e94560',
-            '--accent2': '#f39c12', '--success': '#2ecc71', '--border': '#2a3a5e',
-            '--board-bg': 'radial-gradient(ellipse at center, #0d2147 0%, #091428 60%, #050d1a 100%)',
-        },
-        ocean: {
-            '--bg': '#0b1628', '--bg-panel': '#0d2137', '--bg-card': '#134568',
-            '--text': '#d6e8f0', '--text-dim': '#7ba3bd', '--accent': '#00b4d8',
-            '--accent2': '#48cae4', '--success': '#06d6a0', '--border': '#1a4a6e',
-            '--board-bg': 'radial-gradient(ellipse at center, #0a2540 0%, #061a2e 60%, #030f1a 100%)',
-        },
-        forest: {
-            '--bg': '#1a2216', '--bg-panel': '#1e2e1a', '--bg-card': '#2a4020',
-            '--text': '#d8e8d0', '--text-dim': '#8aaa7e', '--accent': '#e07e39',
-            '--accent2': '#c5e063', '--success': '#4caf50', '--border': '#3a5a30',
-            '--board-bg': 'radial-gradient(ellipse at center, #1e3a18 0%, #152a10 60%, #0a1a06 100%)',
-        },
-        sunset: {
-            '--bg': '#2b1b1e', '--bg-panel': '#3a2025', '--bg-card': '#4a2a2f',
-            '--text': '#f0ddd0', '--text-dim': '#b89080', '--accent': '#ff6b6b',
-            '--accent2': '#ffa947', '--success': '#51cf66', '--border': '#5a3a3e',
-            '--board-bg': 'radial-gradient(ellipse at center, #3a2028 0%, #2a1518 60%, #1a0a0c 100%)',
-        },
-        slate: {
-            '--bg': '#1e1e2e', '--bg-panel': '#24243a', '--bg-card': '#2e2e4a',
-            '--text': '#e0e0f0', '--text-dim': '#8888aa', '--accent': '#a78bfa',
-            '--accent2': '#c4b5fd', '--success': '#34d399', '--border': '#3a3a5e',
-            '--board-bg': 'radial-gradient(ellipse at center, #1e1e3a 0%, #141428 60%, #0a0a1a 100%)',
-        },
-        nord: {
-            '--bg': '#2e3440', '--bg-panel': '#3b4252', '--bg-card': '#434c5e',
-            '--text': '#eceff4', '--text-dim': '#8899aa', '--accent': '#bf616a',
-            '--accent2': '#ebcb8b', '--success': '#a3be8c', '--border': '#4c566a',
-            '--board-bg': 'radial-gradient(ellipse at center, #2e3440 0%, #252b36 60%, #1c2028 100%)',
-        },
+        midnight: { ...neutralBg, '--accent': '#e94560', '--accent2': '#f39c12', '--success': '#2ecc71' },
+        ocean:    { ...neutralBg, '--accent': '#00b4d8', '--accent2': '#48cae4', '--success': '#06d6a0' },
+        forest:   { ...neutralBg, '--accent': '#e07e39', '--accent2': '#c5e063', '--success': '#4caf50' },
+        sunset:   { ...neutralBg, '--accent': '#ff6b6b', '--accent2': '#ffa947', '--success': '#51cf66' },
+        slate:    { ...neutralBg, '--accent': '#a78bfa', '--accent2': '#c4b5fd', '--success': '#34d399' },
+        nord:     { ...neutralBg, '--accent': '#bf616a', '--accent2': '#ebcb8b', '--success': '#a3be8c' },
     };
 
     // ---------- Per-theme color palettes ----------
