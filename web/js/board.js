@@ -6,10 +6,13 @@
 const BoardRenderer = (() => {
     const DEFAULT_HEX_SIZE = 55;
     const SQRT3 = Math.sqrt(3);
+    const NS = 'http://www.w3.org/2000/svg';
     let HEX_SIZE = DEFAULT_HEX_SIZE;
     let numRings = 3;  // updated each render
 
     let svg = null;
+    let defs = null;
+    let pastelMode = false;
     let hexGroup, edgeGroup, intersectionGroup, buildingGroup, labelGroup, robberGroup, portGroup;
 
     // Terrain colors (will be updated from config)
@@ -18,6 +21,10 @@ const BoardRenderer = (() => {
     function init(svgElement) {
         svg = svgElement;
         svg.innerHTML = '';
+
+        // defs must be first so clipPaths are available to later elements
+        defs = document.createElementNS(NS, 'defs');
+        svg.appendChild(defs);
 
         // Create layer groups (order = z-order)
         hexGroup = createGroup('hex-layer');
@@ -119,6 +126,7 @@ const BoardRenderer = (() => {
         currentConfig = config;
 
         // Clear all layers
+        if (defs) defs.innerHTML = '';
         hexGroup.innerHTML = '';
         edgeGroup.innerHTML = '';
         intersectionGroup.innerHTML = '';
@@ -193,19 +201,21 @@ const BoardRenderer = (() => {
 
     function drawHex(hex, callbacks) {
         const { x, y } = hexToPixel(hex.q, hex.r);
-        const color = getTerrainColor(hex.terrain);
 
-        const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-        polygon.setAttribute('points', hexPointsString(x, y));
-        polygon.setAttribute('fill', color);
-        polygon.classList.add('hex-tile');
-        polygon.dataset.hexId = hex.id;
-
-        if (callbacks && callbacks.onHexClick) {
-            polygon.addEventListener('click', () => callbacks.onHexClick(hex.id));
+        if (pastelMode && hex.terrain === 'mountains') {
+            drawMountainsHex(hexGroup, x, y, hex, callbacks);
+        } else {
+            const color = getTerrainColor(hex.terrain);
+            const polygon = document.createElementNS(NS, 'polygon');
+            polygon.setAttribute('points', hexPointsString(x, y));
+            polygon.setAttribute('fill', color);
+            polygon.classList.add('hex-tile');
+            polygon.dataset.hexId = hex.id;
+            if (callbacks && callbacks.onHexClick) {
+                polygon.addEventListener('click', () => callbacks.onHexClick(hex.id));
+            }
+            hexGroup.appendChild(polygon);
         }
-
-        hexGroup.appendChild(polygon);
 
         // Number token — scale sizes for large boards
         if (hex.number_token) {
@@ -274,6 +284,74 @@ const BoardRenderer = (() => {
     function getDots(num) {
         const probs = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
         return probs[num] || 0;
+    }
+
+    // ---------------------------------------------------------------
+    // Pastel picture renderers
+    // ---------------------------------------------------------------
+
+    function setPastelMode(enabled) {
+        pastelMode = !!enabled;
+    }
+
+    // Draw a hex as a layered mountain scene (4 colours: sky, back-peak, front-peak, snow)
+    function drawMountainsHex(container, cx, cy, hex, callbacks) {
+        const s = HEX_SIZE;
+
+        // ClipPath scoped to this hex
+        const clipId = `clip-hex-${hex.id}`;
+        const cp = document.createElementNS(NS, 'clipPath');
+        cp.id = clipId;
+        const cpPoly = document.createElementNS(NS, 'polygon');
+        cpPoly.setAttribute('points', hexPointsString(cx, cy));
+        cp.appendChild(cpPoly);
+        defs.appendChild(cp);
+
+        // Clipped group — carries the hex-tile identity for highlight/click
+        const g = document.createElementNS(NS, 'g');
+        g.setAttribute('clip-path', `url(#${clipId})`);
+        g.classList.add('hex-tile');
+        g.dataset.hexId = hex.id;
+        if (callbacks && callbacks.onHexClick) {
+            g.addEventListener('click', () => callbacks.onHexClick(hex.id));
+        }
+        container.appendChild(g);
+
+        // Helper: point array → SVG polygon element
+        const mkPoly = (pts, fill) => {
+            const el = document.createElementNS(NS, 'polygon');
+            el.setAttribute('points', pts.map(([dx, dy]) => `${cx + dx * s},${cy + dy * s}`).join(' '));
+            el.setAttribute('fill', fill);
+            return el;
+        };
+
+        // 1. Sky — light pastel blue
+        const sky = document.createElementNS(NS, 'rect');
+        sky.setAttribute('x', cx - s); sky.setAttribute('y', cy - s * 1.2);
+        sky.setAttribute('width', s * 2); sky.setAttribute('height', s * 2.4);
+        sky.setAttribute('fill', '#C8E0F0');
+        g.appendChild(sky);
+
+        // 2. Back mountains — lighter grey-blue, two gentle peaks
+        g.appendChild(mkPoly([
+            [-0.87, 0.70], [-0.50, -0.52], [-0.15, 0.04],
+            [ 0.20, -0.65], [ 0.55, -0.25], [ 0.87, 0.70],
+        ], '#BDD2DC'));
+
+        // 3. Front mountains — two bold jagged peaks in medium grey
+        g.appendChild(mkPoly([
+            [-0.87, 1.10], [-0.87, 0.10], [-0.40, -0.40],
+            [ 0.00, 0.15], [ 0.32, -0.50], [ 0.72, -0.10],
+            [ 0.87, 0.20], [ 0.87, 1.10],
+        ], '#7A8E98'));
+
+        // 4. Snow caps — back peaks (softer white)
+        g.appendChild(mkPoly([[-0.64, -0.36], [-0.50, -0.52], [-0.36, -0.36]], '#E8F0F4'));
+        g.appendChild(mkPoly([[ 0.07, -0.49], [ 0.20, -0.65], [ 0.34, -0.49]], '#E8F0F4'));
+
+        // 4b. Snow caps — front peaks (brighter white)
+        g.appendChild(mkPoly([[-0.54, -0.26], [-0.40, -0.40], [-0.26, -0.26]], '#F2F6F8'));
+        g.appendChild(mkPoly([[ 0.18, -0.36], [ 0.32, -0.50], [ 0.46, -0.36]], '#F2F6F8'));
     }
 
     function drawEdge(eid, edge, intersections, callbacks) {
@@ -515,6 +593,7 @@ const BoardRenderer = (() => {
         init,
         setTerrainColors,
         setThemeTerrainColors,
+        setPastelMode,
         render,
         highlightIntersections,
         highlightEdges,

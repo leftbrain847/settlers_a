@@ -19,12 +19,12 @@
         '--board-bg': 'radial-gradient(ellipse at center, #0d2147 0%, #091428 60%, #050d1a 100%)',
     };
     const themes = {
-        midnight: { ...neutralBg, '--accent': '#e94560', '--accent2': '#f39c12', '--success': '#2ecc71' },
-        ocean:    { ...neutralBg, '--accent': '#00b4d8', '--accent2': '#48cae4', '--success': '#06d6a0' },
-        forest:   { ...neutralBg, '--accent': '#e07e39', '--accent2': '#c5e063', '--success': '#4caf50' },
-        sunset:   { ...neutralBg, '--accent': '#ff6b6b', '--accent2': '#ffa947', '--success': '#51cf66' },
-        slate:    { ...neutralBg, '--accent': '#a78bfa', '--accent2': '#c4b5fd', '--success': '#34d399' },
-        nord:     { ...neutralBg, '--accent': '#bf616a', '--accent2': '#ebcb8b', '--success': '#a3be8c' },
+        // Sand: warm coastal palette, light blue ocean water
+        ocean:  { ...neutralBg, '--board-bg': 'radial-gradient(ellipse at center, #7ec8e3 0%, #5bb8d4 60%, #3aa8c5 100%)', '--accent': '#00b4d8', '--accent2': '#f4a261', '--success': '#06d6a0' },
+        // Nordic: Scandinavian muted palette, light silver-grey sea
+        nord:   { ...neutralBg, '--board-bg': 'radial-gradient(ellipse at center, #d0dce8 0%, #b8cad8 60%, #a0b8c8 100%)', '--accent': '#bf616a', '--accent2': '#ebcb8b', '--success': '#a3be8c' },
+        // Pastel: warm soft tones, pale blue-green sea
+        pastel: { ...neutralBg, '--board-bg': 'radial-gradient(ellipse at center, #b8d8e8 0%, #98c8dc 60%, #80b8d0 100%)', '--accent': '#e8956d', '--accent2': '#f0c878', '--success': '#88c890' },
     };
 
     // ---------- Per-theme color palettes ----------
@@ -37,43 +37,33 @@
 
     // Terrain hex fill colors (drawn on the SVG board)
     const themeTerrain = {
-        midnight: null,  // use server defaults: red clay, green wood, gray rock, gold wheat, emerald sheep, tan desert
-        // Ocean: coral reef, driftwood brown, navy mountains, warm sand, turquoise pastures, bright sand
-        ocean:    { hills: '#FF7F6B', forest: '#8B6842', mountains: '#344E6A', fields: '#D8C4A0', pasture: '#20B2AA', desert: '#FFF0D0' },
-        // Forest: burnt orange clay, deep pine, warm stone, harvest gold, olive meadow, dry straw
-        forest:   { hills: '#CC5500', forest: '#2D4A22', mountains: '#7A6A5A', fields: '#CC8800', pasture: '#6B7A35', desert: '#D8C89A' },
-        // Sunset: hot pink clay, deep jade forest, dusty purple mountains, bright orange, spring green, warm peach
-        sunset:   { hills: '#D83060', forest: '#0A7A58', mountains: '#7A5A80', fields: '#E89020', pasture: '#38A848', desert: '#FFE0C0' },
-        // Slate: wine red, cool jade, blue-slate mountains, bronze, teal pasture, silver sand
-        slate:    { hills: '#8A4050', forest: '#2A7A68', mountains: '#5A5A8A', fields: '#9A8020', pasture: '#3A8A7A', desert: '#B0B0C8' },
-        // Nord: official Nord palette — salmon, sage, steel blue, warm tan, frost teal, snow
-        nord:     { hills: '#BF616A', forest: '#A3BE8C', mountains: '#81A1C1', fields: '#EBCB8B', pasture: '#8FBCBB', desert: '#D8DEE9' },
+        // Sand: coral reef hills, driftwood brown forest, coastal rock mountains, warm sand fields, turquoise pastures, cream desert
+        ocean:  { hills: '#FF7F6B', forest: '#8B6842', mountains: '#7A8E99', fields: '#D8C4A0', pasture: '#20B2AA', desert: '#FFF0D0' },
+        // Nordic: official Nord palette — salmon, sage, steel blue, warm tan, frost teal, snow
+        nord:   { hills: '#BF616A', forest: '#A3BE8C', mountains: '#81A1C1', fields: '#EBCB8B', pasture: '#8FBCBB', desert: '#D8DEE9' },
+        // Pastel: soft warm tones — mountains use picture renderer (see board.js)
+        pastel: { hills: '#E8A890', forest: '#90C878', mountains: '#8A9EA8', fields: '#F0D880', pasture: '#A8D8A0', desert: '#F0E0B8' },
     };
 
     // Player piece colors — each palette tells a different story
     const themePlayerColors = {
-        midnight: null,  // server defaults: red, blue, white, orange, purple, teal
-        // Ocean: tropical reef — coral, turquoise, sand, deep violet, hot pink, lime
-        ocean:    ['#FF6B6B', '#00CEC9', '#FFEAA7', '#6C5CE7', '#FD79A8', '#55EFC4'],
-        // Forest: earthy naturals — terracotta, teal, goldenrod, plum, olive, rust
-        forest:   ['#E76F51', '#2A9D8F', '#E9C46A', '#7B2D8E', '#606C38', '#D62828'],
-        // Sunset: vivid neon — hot pink, electric yellow, deep purple, tangerine, mint, cobalt
-        sunset:   ['#FF006E', '#FFBE0B', '#8338EC', '#FB5607', '#3BCEAC', '#0077B6'],
-        // Slate: cyberpunk glow — cyan, magenta, acid green, coral, lavender, gold
-        slate:    ['#00F5FF', '#FF10F0', '#39FF14', '#FF6F61', '#BF5AF2', '#FFD60A'],
-        // Nord: muted Scandinavian — salmon, steel blue, snow, peach, mauve, frost
-        nord:     ['#BF616A', '#5E81AC', '#ECEFF4', '#D08770', '#B48EAD', '#88C0D0'],
+        // Sand: tropical reef — coral, turquoise, sand, deep violet, hot pink, lime
+        ocean:  ['#FF6B6B', '#00CEC9', '#FFEAA7', '#6C5CE7', '#FD79A8', '#55EFC4'],
+        // Nordic: muted Scandinavian — salmon, steel blue, snow, peach, mauve, frost
+        nord:   ['#BF616A', '#5E81AC', '#ECEFF4', '#D08770', '#B48EAD', '#88C0D0'],
+        // Pastel: warm soft — peach, sky blue, butter, lavender, mint, apricot
+        pastel: ['#F08080', '#90C8E0', '#F8E090', '#C0A0D8', '#90D8A8', '#F4A060'],
     };
 
     // Resource UI colors [bright, dim] — matched to terrain hex fills above so
     // the "Clay" resource card looks like the "Hills" hex on the board.
     const themeResourceColors = {
-        midnight: null,  // CSS defaults
-        ocean:    { clay: ['#FF7F6B', '#B85A48'], wood: ['#8B6842', '#5E4528'], rock: ['#4A6A8A', '#304860'], wheat: ['#D8C4A0', '#A09070'], sheep: ['#20B2AA', '#147A72'] },
-        forest:   { clay: ['#CC5500', '#8A3A00'], wood: ['#3A6030', '#243E1A'], rock: ['#7A6A5A', '#504538'], wheat: ['#CC8800', '#8A5A00'], sheep: ['#6B7A35', '#485220'] },
-        sunset:   { clay: ['#D83060', '#901838'], wood: ['#0A7A58', '#065038'], rock: ['#7A5A80', '#503858'], wheat: ['#E89020', '#A06010'], sheep: ['#38A848', '#207030'] },
-        slate:    { clay: ['#8A4050', '#5A2830'], wood: ['#2A7A68', '#185048'], rock: ['#5A5A8A', '#3A3A60'], wheat: ['#9A8020', '#685510'], sheep: ['#3A8A7A', '#205A50'] },
-        nord:     { clay: ['#BF616A', '#8A3A42'], wood: ['#A3BE8C', '#6A8A5A'], rock: ['#81A1C1', '#506A8A'], wheat: ['#EBCB8B', '#A08850'], sheep: ['#8FBCBB', '#5A8A88'] },
+        // Sand: matched to coral/driftwood/coastal terrain palette
+        ocean:  { clay: ['#FF7F6B', '#B85A48'], wood: ['#8B6842', '#5E4528'], rock: ['#7A8E99', '#506070'], wheat: ['#D8C4A0', '#A09070'], sheep: ['#20B2AA', '#147A72'] },
+        // Nordic: matched to Nord terrain palette
+        nord:   { clay: ['#BF616A', '#8A3A42'], wood: ['#A3BE8C', '#6A8A5A'], rock: ['#81A1C1', '#506A8A'], wheat: ['#EBCB8B', '#A08850'], sheep: ['#8FBCBB', '#5A8A88'] },
+        // Pastel: matched to soft terrain palette
+        pastel: { clay: ['#E8A890', '#C07860'], wood: ['#90C878', '#608850'], rock: ['#8A9EA8', '#5A7080'], wheat: ['#F0D880', '#B0A040'], sheep: ['#A8D8A0', '#68A870'] },
     };
 
     let currentThemePlayerColors = null;
@@ -94,6 +84,7 @@
         // Apply terrain color overrides
         const tc = themeTerrain[themeName] || null;
         BoardRenderer.setThemeTerrainColors(tc);
+        BoardRenderer.setPastelMode(themeName === 'pastel');
         // Apply resource color overrides
         const rc = themeResourceColors[themeName];
         const defaultRes = { clay: ['#c0392b','#a0341c'], wood: ['#1a7a42','#14582e'], rock: ['#7f8c8d','#4a545a'], wheat: ['#c9a800','#8a7200'], sheep: ['#2ecc71','#1a8a4a'] };
