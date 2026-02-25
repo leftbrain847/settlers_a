@@ -38,8 +38,8 @@
     // Terrain hex fill colors (drawn on the SVG board)
     const themeTerrain = {
         midnight: null,  // use server defaults: red clay, green wood, gray rock, gold wheat, emerald sheep, tan desert
-        // Ocean: coral reef, deep teal forest, navy mountains, sandy gold, turquoise pastures, bright sand
-        ocean:    { hills: '#FF7F6B', forest: '#006D6F', mountains: '#344E6A', fields: '#D4A030', pasture: '#20B2AA', desert: '#FFF0D0' },
+        // Ocean: coral reef, driftwood brown, navy mountains, warm sand, turquoise pastures, bright sand
+        ocean:    { hills: '#FF7F6B', forest: '#8B6842', mountains: '#344E6A', fields: '#D8C4A0', pasture: '#20B2AA', desert: '#FFF0D0' },
         // Forest: burnt orange clay, deep pine, warm stone, harvest gold, olive meadow, dry straw
         forest:   { hills: '#CC5500', forest: '#2D4A22', mountains: '#7A6A5A', fields: '#CC8800', pasture: '#6B7A35', desert: '#D8C89A' },
         // Sunset: hot pink clay, deep jade forest, dusty purple mountains, bright orange, spring green, warm peach
@@ -69,7 +69,7 @@
     // the "Clay" resource card looks like the "Hills" hex on the board.
     const themeResourceColors = {
         midnight: null,  // CSS defaults
-        ocean:    { clay: ['#FF7F6B', '#B85A48'], wood: ['#009A9A', '#006060'], rock: ['#4A6A8A', '#304860'], wheat: ['#D4A030', '#906A18'], sheep: ['#20B2AA', '#147A72'] },
+        ocean:    { clay: ['#FF7F6B', '#B85A48'], wood: ['#8B6842', '#5E4528'], rock: ['#4A6A8A', '#304860'], wheat: ['#D8C4A0', '#A09070'], sheep: ['#20B2AA', '#147A72'] },
         forest:   { clay: ['#CC5500', '#8A3A00'], wood: ['#3A6030', '#243E1A'], rock: ['#7A6A5A', '#504538'], wheat: ['#CC8800', '#8A5A00'], sheep: ['#6B7A35', '#485220'] },
         sunset:   { clay: ['#D83060', '#901838'], wood: ['#0A7A58', '#065038'], rock: ['#7A5A80', '#503858'], wheat: ['#E89020', '#A06010'], sheep: ['#38A848', '#207030'] },
         slate:    { clay: ['#8A4050', '#5A2830'], wood: ['#2A7A68', '#185048'], rock: ['#5A5A8A', '#3A3A60'], wheat: ['#9A8020', '#685510'], sheep: ['#3A8A7A', '#205A50'] },
