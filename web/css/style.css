@@ -312,6 +312,13 @@ body {
     gap: 8px;
 }
 
+.waiting-room-settings {
+    padding: 10px 14px;
+    background: var(--bg-card);
+    border-radius: 8px;
+    border-left: 4px solid var(--accent2);
+}
+
 .waiting-room-player {
     display: flex;
     align-items: center;

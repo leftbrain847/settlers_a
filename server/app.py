@@ -383,7 +383,7 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str)
 # ---------------------------------------------------------------------------
 
 async def broadcast_lobby(game_id: str):
-    """Send lobby player list to all connected players (used when someone joins)."""
+    """Send lobby player list and settings to all connected players."""
     engine = manager.get_game(game_id)
     if not engine:
         return
@@ -391,10 +391,11 @@ async def broadcast_lobby(game_id: str):
         {"id": p.id, "name": p.name, "color": p.color, "is_ai": manager.is_ai(game_id, p.id)}
         for p in engine.state.players.values()
     ]
+    settings = manager.game_settings.get(game_id, {})
     connections = manager.connections.get(game_id, {})
     for pid, ws in list(connections.items()):
         try:
-            await ws.send_json({"type": "lobby_update", "players": players})
+            await ws.send_json({"type": "lobby_update", "players": players, "settings": settings})
         except Exception:
             connections.pop(pid, None)
 

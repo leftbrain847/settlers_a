@@ -259,6 +259,31 @@
         }
     }
 
+    function renderWaitingRoomSettings(settings) {
+        const container = document.getElementById('waiting-room-settings');
+        const list = document.getElementById('waiting-room-settings-list');
+        if (!settings || Object.keys(settings).length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+        container.style.display = '';
+
+        const lines = [];
+        if (settings.vp_to_win) lines.push(`Victory Points: <b>${settings.vp_to_win}</b>`);
+        if (settings.board_rings) lines.push(`Board Size: <b>${settings.board_rings} rings</b>`);
+        if (settings.starting_resources && settings.starting_resources !== 'none')
+            lines.push(`Starting Resources: <b>${settings.starting_resources}</b>`);
+        if (settings.friendly_robber) lines.push(`Friendly Robber: <b>On</b>`);
+        if (settings.discard_threshold) lines.push(`Discard Threshold: <b>${settings.discard_threshold}</b>`);
+        if (settings.trade_timer) lines.push(`Trade Timer: <b>${settings.trade_timer}s</b>`);
+        if (settings.counter_timer) lines.push(`Counter Timer: <b>${settings.counter_timer}s</b>`);
+        if (settings.max_roads) lines.push(`Roads: <b>${settings.max_roads}</b>`);
+        if (settings.max_settlements) lines.push(`Settlements: <b>${settings.max_settlements}</b>`);
+        if (settings.max_cities) lines.push(`Cities: <b>${settings.max_cities}</b>`);
+
+        list.innerHTML = lines.join('<br>');
+    }
+
     // --- Create Game (host) ---
     btnStart.addEventListener('click', async () => {
         const name = document.getElementById('player-name').value || 'Player 1';
@@ -359,8 +384,8 @@
 
     function onGameUpdate(type, data) {
         if (type === 'lobby_update') {
-            // New player joined — refresh the waiting room player list
-            renderWaitingRoomPlayers(data);
+            renderWaitingRoomPlayers(data.players);
+            if (data.settings) renderWaitingRoomSettings(data.settings);
         }
         else if (type === 'init') {
             const state = Game.getState();
