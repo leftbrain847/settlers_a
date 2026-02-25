@@ -77,6 +77,17 @@
         nord:     ['#BF616A', '#5E81AC', '#ECEFF4', '#D08770', '#B48EAD', '#88C0D0'],
     };
 
+    // Resource colors per theme: [color, dimColor] for each resource.
+    // Midnight uses CSS defaults; other themes have curated resource palettes.
+    const themeResourceColors = {
+        midnight: null,
+        ocean:    { clay: ['#d35430', '#9a3a20'], wood: ['#1a9a5a', '#126840'], rock: ['#6090a0', '#3a6070'], wheat: ['#d4a820', '#957010'], sheep: ['#20b870', '#147a48'] },
+        forest:   { clay: ['#a0522d', '#6e3820'], wood: ['#355e3b', '#234028'], rock: ['#5a6e5a', '#3a4a3a'], wheat: ['#bfa04a', '#806830'], sheep: ['#4a7c59', '#305038'] },
+        sunset:   { clay: ['#e06040', '#a84030'], wood: ['#4a9050', '#2e6030'], rock: ['#9a7570', '#6a4a48'], wheat: ['#daa520', '#957010'], sheep: ['#4ab060', '#2a7838'] },
+        slate:    { clay: ['#c05068', '#803848'], wood: ['#3aaa8a', '#207060'], rock: ['#7070a0', '#4a4a70'], wheat: ['#c0a030', '#806820'], sheep: ['#40a080', '#286850'] },
+        nord:     { clay: ['#bf616a', '#8a3a42'], wood: ['#a3be8c', '#6a8a5a'], rock: ['#81a1c1', '#506a8a'], wheat: ['#ebcb8b', '#a08850'], sheep: ['#8fbcbb', '#5a8a88'] },
+    };
+
     let currentThemePlayerColors = null;
 
     document.getElementById('theme-select').addEventListener('change', (e) => {
@@ -96,6 +107,14 @@
         // Apply terrain color overrides
         const tc = themeTerrain[themeName] || null;
         BoardRenderer.setThemeTerrainColors(tc);
+        // Apply resource color overrides
+        const rc = themeResourceColors[themeName];
+        const defaultRes = { clay: ['#c0392b','#a0341c'], wood: ['#1a7a42','#14582e'], rock: ['#7f8c8d','#4a545a'], wheat: ['#c9a800','#8a7200'], sheep: ['#2ecc71','#1a8a4a'] };
+        const resTheme = rc || defaultRes;
+        for (const [res, [color, dim]] of Object.entries(resTheme)) {
+            root.style.setProperty('--' + res, color);
+            root.style.setProperty('--' + res + '-dim', dim);
+        }
         // Store player color overrides
         currentThemePlayerColors = themePlayerColors[themeName] || null;
         // Re-render if game is active
@@ -641,8 +660,8 @@
         const config = Game.getConfig();
         const resourceList = config ? Object.keys(config.resource_types) : Object.keys(me.resources);
         const colorMap = {
-            clay: 'var(--clay)', wood: '#1a7a42', rock: 'var(--rock)',
-            wheat: '#c9a800', sheep: 'var(--sheep)',
+            clay: 'var(--clay)', wood: 'var(--wood)', rock: 'var(--rock)',
+            wheat: 'var(--wheat)', sheep: 'var(--sheep)',
         };
 
         container.innerHTML = resourceList.map(res => {
@@ -822,8 +841,8 @@
 
     function costDots(cost) {
         const colorMap = {
-            clay: 'var(--clay)', wood: '#1a7a42', rock: 'var(--rock)',
-            wheat: '#c9a800', sheep: 'var(--sheep)',
+            clay: 'var(--clay)', wood: 'var(--wood)', rock: 'var(--rock)',
+            wheat: 'var(--wheat)', sheep: 'var(--sheep)',
         };
         let html = '<span class="cost">';
         for (const [res, count] of Object.entries(cost)) {
@@ -1181,10 +1200,9 @@
         modal.classList.add('active');
     }
 
-    const resColors = {
-        clay: '#c0392b', wood: '#1a7a42', rock: '#7f8c8d',
-        wheat: '#c9a800', sheep: '#2ecc71',
-    };
+    function getResColor(res) {
+        return getComputedStyle(document.documentElement).getPropertyValue('--' + res).trim() || '#888';
+    }
 
     // Track the trade offer we sent (for response display)
     let activeSentTradeId = null;
@@ -1306,7 +1324,7 @@
         // Show recap of what we offered
         function resChips(obj) {
             return Object.entries(obj).filter(([, c]) => c > 0).map(([r, c]) =>
-                `<span class="res-chip" style="color:${resColors[r] || 'var(--text)'}">${c} ${r.charAt(0).toUpperCase() + r.slice(1)}</span>`
+                `<span class="res-chip" style="color:${getResColor(r)}">${c} ${r.charAt(0).toUpperCase() + r.slice(1)}</span>`
             ).join(' ');
         }
         document.getElementById('trade-offer-recap').innerHTML =
@@ -1445,7 +1463,7 @@
 
         function resChips(obj) {
             return Object.entries(obj).filter(([, c]) => c > 0).map(([r, c]) =>
-                `<span class="res-chip" style="color:${resColors[r] || 'var(--text)'}">${c} ${r.charAt(0).toUpperCase() + r.slice(1)}</span>`
+                `<span class="res-chip" style="color:${getResColor(r)}">${c} ${r.charAt(0).toUpperCase() + r.slice(1)}</span>`
             ).join('');
         }
 
