@@ -1394,12 +1394,7 @@
         fill.offsetHeight;
         fill.style.transition = `width ${seconds}s linear`;
         fill.style.width = '0%';
-
-        tradeTimerInterval = setTimeout(() => {
-            // Timer expired — auto-dismiss the sent trade modal
-            document.getElementById('trade-offer-modal').classList.remove('active');
-            activeSentTradeId = null;
-        }, seconds * 1000);
+        // Timer bar is visual only — modal dismisses based on actual responses
     }
 
     function clearTradeTimer() {
@@ -1491,6 +1486,18 @@
         }
         if (state.turn_number >= rejectAllUntil) {
             rejectAllUntil = 0;
+        }
+
+        // Auto-decline if we can't afford what they're requesting
+        const myRes = state.players[Game.getPlayerId()]?.resources;
+        if (myRes) {
+            const cantAfford = Object.entries(offer.requesting).some(
+                ([res, amt]) => (myRes[res] || 0) < amt
+            );
+            if (cantAfford) {
+                Game.tradeRespond(tradeId, 'decline');
+                return;
+            }
         }
 
         const modal = document.getElementById('incoming-trade-modal');

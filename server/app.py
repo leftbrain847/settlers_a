@@ -365,6 +365,23 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str)
                     # Let AI bots respond to trade offers
                     if data["action_type"] == "trade_offer":
                         asyncio.create_task(handle_ai_trade_responses(game_id))
+                    # Auto-finalize: when someone accepts a trade from a bot
+                    # or non-current-player, execute it immediately
+                    elif data["action_type"] == "trade_respond":
+                        resp = data.get("params", {}).get("response")
+                        tid = data.get("params", {}).get("trade_id")
+                        offer = engine.state.trade_offers.get(tid) if tid else None
+                        if resp == "accept" and offer:
+                            offerer_is_bot = manager.is_ai(game_id, offer.from_player)
+                            offerer_is_current = (offer.from_player == engine.state.current_player_id)
+                            if offerer_is_bot or not offerer_is_current:
+                                engine.do_action(Action(
+                                    type="trade_accept",
+                                    player_id=offer.from_player,
+                                    params={"trade_id": tid, "accepter_id": player_id}))
+                                await broadcast_state(game_id)
+                        # Let bots respond to any remaining offers
+                        asyncio.create_task(handle_ai_trade_responses(game_id))
                     await run_ai_turns(game_id)
                 else:
                     await websocket.send_json({"type": "error", "message": result.error})
@@ -424,79 +441,40 @@ async def broadcast_state(game_id: str):
 # ---------------------------------------------------------------------------
 
 async def handle_ai_trade_responses(game_id: str):
-    """Let AI players evaluate and respond to active trade offers.
-
-    Waits for the configurable trade_timer before bots respond, giving
-    human players a chance to respond first. Runs as a background task.
-    """
+    """Let AI bots respond to active trade offers immediately."""
     engine = manager.get_game(game_id)
     if not engine:
         return
 
-    trade_timer = engine.config.trade_rules.trade_timer
-
-    # Check if there are human players (other than the offerer)
-    has_humans = False
-    for tid, offer in list(engine.state.trade_offers.items()):
-        for pid in engine.state.player_order:
-            if pid != offer.from_player and not manager.is_ai(game_id, pid):
-                has_humans = True
-                break
-
-    # Wait for humans to see and respond first
-    if has_humans:
-        await asyncio.sleep(trade_timer)
-
-    # Now let bots respond to any remaining trade offers
     for tid, offer in list(engine.state.trade_offers.items()):
         if tid not in engine.state.trade_offers:
-            continue  # Already resolved by a human
+            continue  # Already resolved
         for pid in engine.state.player_order:
-            if pid == offer.from_player:
+            if pid == offer.from_player or not manager.is_ai(game_id, pid):
                 continue
-            if not manager.is_ai(game_id, pid):
-                continue
-            # Skip if bot already responded
             if pid in offer.responses:
                 continue
             strategy = manager.ai_players[game_id][pid]
             if strategy.evaluate_trade(engine, pid, offer.offering, offer.requesting, offer.from_player):
-                # Bot responds with "accept"
-                respond_action = Action(type="trade_respond", player_id=pid,
-                                       params={"trade_id": tid, "response": "accept"})
-                result = engine.do_action(respond_action)
-                if result.success:
-                    await broadcast_state(game_id)
-                    if has_humans:
-                        await asyncio.sleep(0.8)
+                action = Action(type="trade_respond", player_id=pid,
+                                params={"trade_id": tid, "response": "accept"})
+                engine.do_action(action)
             else:
-                # Bot responds with "decline"
-                respond_action = Action(type="trade_respond", player_id=pid,
-                                       params={"trade_id": tid, "response": "decline"})
-                engine.do_action(respond_action)
-                # Try a counter-offer
+                # Decline — then try a counter-offer
+                action = Action(type="trade_respond", player_id=pid,
+                                params={"trade_id": tid, "response": "decline"})
+                engine.do_action(action)
                 counter = strategy.generate_counter_offer(
                     engine, pid, offer.offering, offer.requesting, offer.from_player)
                 if counter:
-                    counter_action = Action(type="trade_offer", player_id=pid,
-                                          params=counter)
-                    result = engine.do_action(counter_action)
+                    result = engine.do_action(Action(
+                        type="trade_offer", player_id=pid, params=counter))
                     if result.success:
-                        # Link the counter-offer to the original
                         new_tid = list(engine.state.trade_offers.keys())[-1]
                         offer.counter_ids.append(new_tid)
                         offer.responses[pid] = "countered"
-                        await broadcast_state(game_id)
-                        if has_humans:
-                            await asyncio.sleep(1)
-                else:
-                    await broadcast_state(game_id)
-                    if has_humans:
-                        await asyncio.sleep(0.5)
 
-    # Broadcast final state so client sees all responses at once (for bot-only games)
-    if not has_humans:
-        await broadcast_state(game_id)
+    await broadcast_state(game_id)
 
 
 async def run_ai_turns(game_id: str):
