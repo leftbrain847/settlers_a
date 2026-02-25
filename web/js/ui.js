@@ -69,8 +69,10 @@
     let currentThemePlayerColors = null;
 
     function applyTheme(themeName) {
+        // Guard against stale browser-cached dropdown values from removed themes
+        if (!themes[themeName]) themeName = 'ocean';
         const theme = themes[themeName];
-        if (!theme) return;
+        document.getElementById('theme-select').value = themeName;
         const root = document.documentElement;
         for (const [key, value] of Object.entries(theme)) {
             if (key === '--board-bg') continue;
