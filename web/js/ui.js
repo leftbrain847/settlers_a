@@ -78,8 +78,7 @@
 
     let currentThemePlayerColors = null;
 
-    document.getElementById('theme-select').addEventListener('change', (e) => {
-        const themeName = e.target.value;
+    function applyTheme(themeName) {
         const theme = themes[themeName];
         if (!theme) return;
         const root = document.documentElement;
@@ -107,7 +106,14 @@
         currentThemePlayerColors = themePlayerColors[themeName] || null;
         // Re-render if game is active
         if (Game.getState()) renderAll();
+    }
+
+    document.getElementById('theme-select').addEventListener('change', (e) => {
+        applyTheme(e.target.value);
     });
+
+    // Apply whatever the browser auto-restored in the dropdown on refresh
+    applyTheme(document.getElementById('theme-select').value);
 
     const btnStart = document.getElementById('btn-start-game');
     const btnJoin = document.getElementById('btn-join-game');
@@ -1452,6 +1458,18 @@
                 clearTradeTimer();
             });
         });
+
+        // Auto-dismiss if every other player has responded and none accepted
+        const otherPlayers = state.player_order.filter(pid => pid !== myId);
+        const allResponded = otherPlayers.every(pid => offer.responses && offer.responses[pid]);
+        const anyAccepted = otherPlayers.some(pid => offer.responses && offer.responses[pid] === 'accepted');
+        if (allResponded && !anyAccepted) {
+            document.getElementById('trade-offer-modal').classList.remove('active');
+            activeSentTradeId = null;
+            clearTradeTimer();
+            showNotification('All players declined your trade', 'warning');
+            return;
+        }
     }
 
     // Reject-all state: { until: turnNumber } — auto-decline until this turn
