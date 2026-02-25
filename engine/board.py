@@ -88,9 +88,7 @@ def generate_board(config: GameConfig, seed: Optional[int] = None) -> Board:
         hex_id_map[(q, r)] = i
 
     # --- Step 3: Assign number tokens ---
-    # Place tokens on non-desert hexes in spiral order
     number_tokens = list(template.number_tokens)
-    token_idx = 0
 
     # Determine which hexes get numbers (those that produce resources)
     producing_hexes = []
@@ -103,13 +101,46 @@ def generate_board(config: GameConfig, seed: Optional[int] = None) -> Board:
             # Desert — place robber here initially
             desert_hex_id = hid
 
-    # Sort producing hexes by spiral order for token placement
-    producing_hexes.sort(key=lambda hid: _spiral_key(board.hexes[hid].q, board.hexes[hid].r))
+    # Build hex adjacency so we can check neighbor constraints
+    hex_adj: dict[int, list[int]] = {hid: [] for hid in board.hexes}
+    for hid in board.hexes:
+        h = board.hexes[hid]
+        for nq, nr in hex_neighbors(h.q, h.r):
+            if (nq, nr) in hex_id_map:
+                hex_adj[hid].append(hex_id_map[(nq, nr)])
 
-    for hid in producing_hexes:
-        if token_idx < len(number_tokens):
-            board.hexes[hid].number_token = number_tokens[token_idx]
-            token_idx += 1
+    # Shuffle tokens and assign to producing hexes, ensuring no two 6/8
+    # tokens land on adjacent hexes (standard Catan fairness rule).
+    RED_NUMBERS = {6, 8}
+
+    def _try_assign(hexes, tokens, rng_obj):
+        """Shuffle tokens onto hexes; return mapping or None if constraint violated."""
+        shuffled = list(tokens)
+        rng_obj.shuffle(shuffled)
+        assignment = dict(zip(hexes, shuffled))
+        # Check: no two adjacent hexes both have 6 or 8
+        for hid, num in assignment.items():
+            if num in RED_NUMBERS:
+                for neighbor in hex_adj.get(hid, []):
+                    if neighbor in assignment and assignment[neighbor] in RED_NUMBERS:
+                        return None
+        return assignment
+
+    # Try up to 100 shuffles to satisfy the adjacency constraint, then
+    # fall back to accepting whatever we get (still random, just maybe
+    # with adjacent 6/8 on very constrained boards).
+    assignment = None
+    for _ in range(100):
+        assignment = _try_assign(producing_hexes, number_tokens, rng)
+        if assignment is not None:
+            break
+    if assignment is None:
+        # Fallback: accept last shuffle even if constraint not met
+        rng.shuffle(number_tokens)
+        assignment = dict(zip(producing_hexes, number_tokens))
+
+    for hid, token in assignment.items():
+        board.hexes[hid].number_token = token
 
     # --- Step 4: Generate intersections ---
     corner_to_iid: dict[tuple[int, int], int] = {}
@@ -193,11 +224,6 @@ def _generate_hex_positions(num_rings: int) -> list[tuple[int, int]]:
                 r += dr
     return positions
 
-
-def _spiral_key(q: int, r: int) -> tuple[int, int]:
-    """Sort key for spiral ordering from center outward."""
-    ring = max(abs(q), abs(-q - r), abs(r))
-    return (ring, q * 100 + r)
 
 
 def _assign_ports(board: Board, config: GameConfig, rng: random.Random):
