@@ -135,6 +135,8 @@
         document.getElementById('setting-port-rock').value = 1;
         document.getElementById('setting-port-wheat').value = 1;
         document.getElementById('setting-port-sheep').value = 1;
+        document.getElementById('setting-trade-timer').value = 10;
+        document.getElementById('setting-counter-timer').value = 15;
         updateRingsLabel();
     });
 
@@ -267,6 +269,8 @@
                 wheat_port: parseInt(document.getElementById('setting-port-wheat').value) || 0,
                 sheep_port: parseInt(document.getElementById('setting-port-sheep').value) || 0,
             },
+            trade_timer: parseInt(document.getElementById('setting-trade-timer').value) || 10,
+            counter_timer: parseInt(document.getElementById('setting-counter-timer').value) || 15,
         };
 
         btnStart.disabled = true;
