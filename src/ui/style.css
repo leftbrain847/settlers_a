@@ -13,7 +13,8 @@ h4.group { margin-top: 16px; }
 .btn.big { min-height: 52px; font-size: 17px; }
 .btn.small { min-height: 36px; font-size: 13px; }
 .btn.danger { border-color: #b04a4a; color: #ff9a9a; }
-.btn:disabled { opacity: .4; cursor: default; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary:disabled { background: var(--card); border-color: var(--border); color: var(--dim); opacity: .8; }
 .btn:active:not(:disabled) { transform: scale(.98); }
 .icon { min-width: 44px; min-height: 44px; border: 0; background: none; font-size: 20px; cursor: pointer; }
 
@@ -68,7 +69,9 @@ h4.group { margin-top: 16px; }
 .row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .btnrow { display: flex; gap: 8px; flex-wrap: wrap; } .btnrow .btn { flex: 1; }
 .costs { display: inline-flex; flex-wrap: wrap; gap: 4px; }
-.chip.res { padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--c); color: #12161f; }
+.chip.res { padding: 3px 10px; border-radius: 999px; font-size: 14px; font-weight: 700; background: var(--bg); color: var(--text); border: 2px solid var(--c); box-shadow: inset 6px 0 0 -2px var(--c); padding-left: 14px; }
+.trade .chip.res { font-size: 17px; padding: 5px 12px 5px 16px; }
+.trade .side { padding: 10px; } .trade .costs { gap: 6px; }
 .steppers { display: flex; flex-direction: column; gap: 6px; }
 .stepper { display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 10px; background: var(--card); border-left: 6px solid var(--c); }
 .stepper-name { flex: 1; font-weight: 600; } .step-val { min-width: 24px; text-align: center; font-weight: 800; font-size: 18px; }
