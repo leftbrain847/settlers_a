@@ -128,8 +128,8 @@ export function tradeSheet({ view, cfg, ui, send }) {
   const cap9 = Object.fromEntries(kinds.map((r) => [r, 9]));
   const others = view.player_order.filter((p) => p !== view.me).map((p) => view.players[p].name).join(', ');
   return h('div', tabs, h('p.dim.small', `To ${others}. Bots answer at once; people get ${cfg.trade_rules.human_response_timer}s.`),
-    h('h4', 'You give'), steppers(cfg, t.give, kinds, me.resources),
-    h('h4', 'You want'), steppers(cfg, t.want, kinds, cap9),
+    h('h4', 'Give'), steppers(cfg, t.give, kinds, me.resources),
+    h('h4', 'Receive'), steppers(cfg, t.want, kinds, cap9),
     btn('Send offer', () => { send('trade_offer', { offering: { ...t.give }, requesting: { ...t.want } }); ui.draft.trade = { give: {}, want: {} }; ui.sheet = null; }, { primary: true, disabled: !canSend }));
 }
 
@@ -158,13 +158,13 @@ export function incomingSheet({ view, cfg, ui, send, snap, offer, remaining }) {
   if (counterDraft && counterDraft.for === offer.id) {
     const kinds = Object.keys(cfg.resource_types);
     return h('div', h('h4', `Counter ${from.name}`),
-      h('p.dim.small', 'They give'), steppers(cfg, counterDraft.they, kinds, Object.fromEntries(kinds.map((r) => [r, 9]))),
-      h('p.dim.small', 'You give'), steppers(cfg, counterDraft.you, kinds, me.resources),
+      h('p.dim.small', 'Receive'), steppers(cfg, counterDraft.they, kinds, Object.fromEntries(kinds.map((r) => [r, 9]))),
+      h('p.dim.small', 'Give'), steppers(cfg, counterDraft.you, kinds, me.resources),
       h('div.btnrow', btn('Send counter', () => { send('trade_offer', { offering: { ...counterDraft.you }, requesting: { ...counterDraft.they }, counter_to: offer.id }); ui.draft.counter = null; }, { primary: true, disabled: !(sum(counterDraft.they) && sum(counterDraft.you)) }),
         btn('Back', () => { ui.draft.counter = null; ctx.rerender(); })));
   }
   return h('div', h('p', h('strong', from.name), ' offers a trade'),
-    h('div.trade', side(`${from.name} gives`, offer.offering), h('span.arrow', '⇄'), side('You give', offer.requesting)),
+    h('div.trade', side('Receive', offer.offering), h('span.arrow', '⇄'), side('Give', offer.requesting)),
     timerBar(snap, offer.id),
     h('div.btnrow', btn('Accept', () => send('trade_respond', { trade_id: offer.id, response: 'accept' }), { primary: true, disabled: !afford }),
       cfg.trade_rules.counter_offers ? btn('Counter', () => { ui.draft.counter = { for: offer.id, they: { ...offer.offering }, you: { ...offer.requesting } }; ctx.rerender(); }) : null,
@@ -185,7 +185,7 @@ export function waitingSheet({ view, cfg, ui, send, snap, offer, counters }) {
   const side = (label, m) => h('div.side', h('div.side-label', label), h('div.costs', Object.entries(m).map(([r, n]) => chip(cfg, r, n))));
   const counterRows = counters.map((c) => h('div.row', h('div.row-main', h('strong', `${view.players[c.from_player].name} counters`), h('div.costs', h('span.dim.small', 'gives '), Object.entries(c.offering).map(([r, n]) => chip(cfg, r, n)), h('span.dim.small', ' for '), Object.entries(c.requesting).map(([r, n]) => chip(cfg, r, n)))),
     btn('Accept', () => send('trade_respond', { trade_id: c.id, response: 'accept' }), { primary: true }), btn('Decline', () => send('trade_respond', { trade_id: c.id, response: 'decline' }))));
-  return h('div', h('div.trade', side('You give', offer.offering), h('span.arrow', '⇄'), side('You want', offer.requesting)),
+  return h('div', h('div.trade', side('Give', offer.offering), h('span.arrow', '⇄'), side('Receive', offer.requesting)),
     h('div.list', rows, counterRows), timerBar(snap, offer.id),
     btn('Withdraw offer', () => send('trade_cancel', { trade_id: offer.id })));
 }
