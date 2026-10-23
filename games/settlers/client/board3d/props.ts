@@ -35,6 +35,39 @@ export function scatter(rng: () => number, n: number, minGap: number, chip: bool
 
 const count = (base: number, ctx: PropCtx): number => Math.max(1, Math.round(base * ctx.preset.propDensity));
 
+/** Contact shadow under a prop. Realistic only: the flat styles read fine without it. */
+function blob(ctx: PropCtx, x: number, z: number, r: number): void {
+  if (ctx.preset.flat) return;
+  const b = ctx.kit.batch('blob', 'blob', ctx.kit.blob(), { castShadow: false });
+  b.add(place(ctx.cx + x, ctx.surface(x, z) + 0.006, ctx.cz + z, r, 1, r));
+}
+
+/** Pebbles and boulders, and little bushes: the small stuff that makes ground look lived-on. */
+function litter(ctx: PropCtx, rng: () => number, rocks: number, bushes: number, rockColor: string, flowers = 0): void {
+  const { kit, preset, pal } = ctx;
+  if (preset.flat) return;
+  const k = preset.propScale;
+  const stone = kit.std('stone', { rough: 0.95 }), shrub = kit.std('shrub', { rough: 0.9 }) as THREE.MeshStandardMaterial;
+  windy(shrub, kit.wind, 0.04, 'shrub');
+  const rockB = kit.batch('rock', 'rock', stone), bushB = kit.batch('bush', 'sphere', shrub), petals = kit.batch('petal', 'sphere', kit.std('petal', { rough: 0.7 }), { castShadow: false });
+  for (const [x, z] of scatter(rng, Math.round(rocks * preset.propDensity), 0.2, ctx.hasChip, 0.9)) {
+    const s = (0.035 + rng() * 0.05) * k;
+    rockB.add(place(ctx.cx + x, ctx.surface(x, z) - 0.01, ctx.cz + z, s, s, s, rng() * 6), tint(rockColor, 0, -0.05, (rng() - 0.5) * 0.12));
+    blob(ctx, x, z, s * 1.7);
+  }
+  const base = scaleSat(pal.foliage, preset.saturation);
+  for (const [x, z] of scatter(rng, Math.round(bushes * preset.propDensity), 0.3, ctx.hasChip, 0.85)) {
+    const y = ctx.surface(x, z), s = (0.05 + rng() * 0.04) * k;
+    bushB.add(place(ctx.cx + x, y + s * 0.5, ctx.cz + z, s * 1.3, s * 0.9, s * 1.1, rng() * 6), tint(base, (rng() - 0.5) * 0.04, 0.02, 0.0 + (rng() - 0.5) * 0.1));
+    blob(ctx, x, z, s * 1.9);
+  }
+  const hues = ['#f6f1e4', '#f4d14b', '#e9829b', '#b99be0'];
+  for (const [x, z] of scatter(rng, Math.round(flowers * preset.propDensity), 0.09, ctx.hasChip, 0.85)) {
+    const y = ctx.surface(x, z), s = 0.011 * k;
+    petals.add(place(ctx.cx + x, y + 0.03 * k, ctx.cz + z, s, s, s), hues[Math.floor(rng() * hues.length)]!);
+  }
+}
+
 export function forest(ctx: PropCtx): void {
   const { kit, preset, pal } = ctx;
   const rng = rngFor(ctx.hexId * 7 + 1);
@@ -42,15 +75,26 @@ export function forest(ctx: PropCtx): void {
   const wood = kit.std('bark', { color: '#6b4a2f' });
   const leaf = kit.std('leaf', {}) as THREE.MeshStandardMaterial;
   windy(leaf, kit.wind, 0.05, 'leaf');
-  const trunks = kit.batch('trunk', 'cyl', wood), cones = kit.batch('foliage', 'cone', leaf);
+  const trunks = kit.batch('trunk', 'cyl', wood), cones = kit.batch('foliage', 'cone', leaf), crowns = kit.batch('crown', 'sphere', leaf);
   const base = scaleSat(pal.foliage, preset.saturation);
   for (const [x, z] of scatter(rng, count(8, ctx), 0.2 * k, ctx.hasChip)) {
     const y = ctx.surface(x, z), s = (0.85 + rng() * 0.5) * k, yaw = rng() * 6.28;
     const col = tint(base, (rng() - 0.5) * 0.04, (rng() - 0.5) * 0.1, -0.1 + (rng() - 0.5) * 0.12);
+    blob(ctx, x, z, 0.2 * s);
+    if (!preset.flat && rng() < 0.4) {
+      // broadleaf: a short trunk under a lumpy crown of three overlapping blobs, lighter and yellower than the pines
+      const lit = tint(base, 0.015, 0.03, 0.03);
+      trunks.add(place(ctx.cx + x, y, ctx.cz + z, 0.03 * s, 0.17 * s, 0.03 * s, yaw));
+      for (const [dx, dy, dz, r] of [[0, 0.27, 0, 0.13], [0.07, 0.22, 0.03, 0.09], [-0.06, 0.23, -0.04, 0.1]] as const) {
+        crowns.add(place(ctx.cx + x + dx * s, y + dy * s, ctx.cz + z + dz * s, r * s, r * s * 0.85, r * s, yaw), tint(lit, 0, 0, (rng() - 0.5) * 0.08));
+      }
+      continue;
+    }
     trunks.add(place(ctx.cx + x, y, ctx.cz + z, 0.035 * s, 0.14 * s, 0.035 * s, yaw));
     const tiers: [number, number, number][] = preset.flat ? [[0.17, 0.24, 0.08], [0.13, 0.22, 0.2], [0.085, 0.18, 0.31]] : [[0.19, 0.27, 0.07], [0.15, 0.25, 0.19], [0.11, 0.22, 0.31], [0.07, 0.18, 0.42]];
-    tiers.forEach(([r, h, off], i) => cones.add(place(ctx.cx + x, y + off * s, ctx.cz + z, r * s, h * s, r * s, yaw + i), tint(col, 0, 0, i * 0.025)));
+    tiers.forEach(([r, h, off], i) => cones.add(place(ctx.cx + x + (preset.flat ? 0 : (rng() - 0.5) * 0.015), y + off * s, ctx.cz + z, r * s, h * s, r * s, yaw + i, preset.flat ? 0 : (rng() - 0.5) * 0.08), tint(col, 0, 0, i * 0.025)));
   }
+  litter(ctx, rng, 3, 4, '#7b7a72', 0);
 }
 
 export function mountains(ctx: PropCtx): void {
@@ -66,7 +110,9 @@ export function mountains(ctx: PropCtx): void {
     peaks.add(place(ctx.cx + x, y, ctx.cz + z, r, h, r, yaw), tint(base, 0, 0, (rng() - 0.5) * 0.08 - i * 0.01));
     const capH = h * 0.38, capR = r * 0.38;
     caps.add(place(ctx.cx + x, y + h * 0.64, ctx.cz + z, capR * 1.02, capH, capR * 1.02, yaw));
+    blob(ctx, x, z, r * 1.25);
   });
+  litter(ctx, rng, 7, 0, base.getStyle());
 }
 
 export function hills(ctx: PropCtx): void {
@@ -79,7 +125,9 @@ export function hills(ctx: PropCtx): void {
   [[-0.36, -0.2, 0.42], [0.34, -0.26, 0.34], [0.12, 0.44, 0.36], [-0.34, 0.38, 0.26]].slice(0, count(3, ctx)).forEach(([x, z, r], i) => {
     const y = ctx.surface(x!, z!);
     domes.add(place(ctx.cx + x!, y - 0.02, ctx.cz + z!, r! * k, r! * 0.62 * k, r! * k, rng() * 6), tint(base, 0, -0.04, -0.08 + i * 0.02));
+    blob(ctx, x!, z!, r! * 1.15);
   });
+  litter(ctx, rng, 5, 2, '#8a6a52');
   // a small stack of fired bricks beside the pit
   const bx = 0.28, bz = 0.22, by = ctx.surface(bx, bz);
   for (let row = 0; row < 3; row++) for (let i = 0; i < 3 - row; i++) {
@@ -111,6 +159,7 @@ export function fields(ctx: PropCtx): void {
       heads.add(place(ctx.cx + x, y + h, ctx.cz + z, 0.026 * k, 0.05 * k, 0.026 * k), col);
     }
   }
+  litter(ctx, rng, 2, 0, '#8b7f68');
 }
 
 export function pasture(ctx: PropCtx): void {
@@ -126,12 +175,15 @@ export function pasture(ctx: PropCtx): void {
   scatter(rng, n, 0.42, ctx.hasChip, 0.7).forEach(([x, z], i) => {
     const y = ctx.surface(x, z), s = (0.8 + rng() * 0.3) * k;
     const ref = flock.add(place(ctx.cx + x, y, ctx.cz + z, s, s, s, rng() * 6.28));
+    blob(ctx, x, z, 0.14 * s);
     ctx.sheep.push({ batch: flock, index: ref, home: { x: ctx.cx + x, z: ctx.cz + z, y }, phase: i * 2.1 + rng() * 6, radius: 0.09, scale: s });
   });
   const base = scaleSat(ctx.pal.grass, preset.saturation);
-  for (const [x, z] of scatter(rng, count(9, ctx), 0.16, ctx.hasChip, 0.85)) {
-    tufts.add(place(ctx.cx + x, ctx.surface(x, z), ctx.cz + z, 0.03 * k, 0.09 * k, 0.03 * k, rng() * 6), tint(base, 0, 0.02, -0.12 + rng() * 0.08));
+  for (const [x, z] of scatter(rng, count(preset.flat ? 9 : 26, ctx), preset.flat ? 0.16 : 0.07, ctx.hasChip, 0.88)) {
+    const h = (0.07 + rng() * 0.07) * k;
+    tufts.add(place(ctx.cx + x, ctx.surface(x, z), ctx.cz + z, (preset.flat ? 0.03 : 0.016) * k, h, (preset.flat ? 0.03 : 0.016) * k, rng() * 6, (rng() - 0.5) * 0.3), tint(base, (rng() - 0.5) * 0.03, 0.02, -0.12 + rng() * 0.12));
   }
+  litter(ctx, rng, 2, 2, '#8b8a80', 10);
 }
 
 export function desert(ctx: PropCtx): void {
@@ -148,7 +200,9 @@ export function desert(ctx: PropCtx): void {
     const y = ctx.surface(x, z), s = k * (0.9 + rng() * 0.3);
     cyl.add(place(ctx.cx + x, y, ctx.cz + z, 0.035 * s, 0.2 * s, 0.035 * s));
     cyl.add(place(ctx.cx + x + 0.05 * s, y + 0.09 * s, ctx.cz + z, 0.022 * s, 0.09 * s, 0.022 * s));
+    blob(ctx, x, z, 0.1 * s);
   }
+  litter(ctx, rng, 6, 0, '#b59c74');
 }
 
 export const DRESS: Record<string, (c: PropCtx) => void> = { forest, mountains, hills, fields, pasture, desert };

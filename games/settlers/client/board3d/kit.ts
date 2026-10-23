@@ -9,8 +9,9 @@ const unit = (g: THREE.BufferGeometry): THREE.BufferGeometry => { g.translate(0,
 export class Kit {
   preset: StylePreset;
   wind = { value: 0 };
-  geo: Record<'cone' | 'cone4' | 'cyl' | 'cyl4' | 'sphere' | 'dome' | 'box' | 'pyramid' | 'sheep', THREE.BufferGeometry>;
+  geo: Record<'cone' | 'cone4' | 'cyl' | 'cyl4' | 'sphere' | 'dome' | 'box' | 'pyramid' | 'sheep' | 'blob' | 'rock', THREE.BufferGeometry>;
   private mats = new Map<string, THREE.Material>();
+  private extra: { dispose(): void }[] = [];
   private batches = new Map<string, Batch>();
 
   constructor(preset: StylePreset) {
@@ -26,6 +27,8 @@ export class Kit {
       box: unit(new THREE.BoxGeometry(1, 1, 1)),
       pyramid: unit(new THREE.ConeGeometry(0.7071, 1, 4).rotateY(Math.PI / 4)),
       sheep: sheepGeometry(preset.flat),
+      blob: new THREE.CircleGeometry(1, 18).rotateX(-Math.PI / 2),
+      rock: new THREE.IcosahedronGeometry(1, 0).scale(1, 0.62, 0.85).translate(0, 0.3, 0),
     };
   }
 
@@ -43,6 +46,21 @@ export class Kit {
     })) as THREE.MeshStandardMaterial;
   }
 
+  /** A soft dark disc laid on the ground under things: cheap ambient occlusion where objects touch the tile. */
+  blob(strength = 0.42): THREE.Material {
+    return this.material('blob', () => {
+      const n = 32, data = new Uint8Array(n * n * 4);
+      for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+        const d = Math.hypot((x + 0.5) / n - 0.5, (y + 0.5) / n - 0.5) * 2;
+        data[(y * n + x) * 4 + 3] = Math.round(255 * Math.max(0, 1 - d) ** 1.6);
+      }
+      const tex = new THREE.DataTexture(data, n, n, THREE.RGBAFormat);
+      tex.minFilter = tex.magFilter = THREE.LinearFilter; tex.needsUpdate = true;
+      this.extra.push(tex);
+      return new THREE.MeshBasicMaterial({ map: tex, color: '#120d08', transparent: true, opacity: strength, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    });
+  }
+
   batch(key: string, geo: keyof Kit['geo'], mat: THREE.Material, opts?: { castShadow?: boolean; receiveShadow?: boolean }): Batch {
     let b = this.batches.get(key);
     if (!b) { b = new Batch(this.geo[geo], mat, opts); this.batches.set(key, b); }
@@ -54,6 +72,7 @@ export class Kit {
   dispose(): void {
     for (const g of Object.values(this.geo)) g.dispose();
     for (const m of this.mats.values()) m.dispose();
+    for (const e of this.extra) e.dispose();
   }
 }
 

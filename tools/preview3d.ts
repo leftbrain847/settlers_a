@@ -15,7 +15,7 @@ mkdirSync(out, { recursive: true });
 const gl = createGL(w, h, { preserveDrawingBuffer: true, antialias: false, stencil: true });
 if (!gl) throw new Error('no GL context (run under xvfb-run)');
 const canvas = { width: w, height: h, style: {}, addEventListener() {}, removeEventListener() {}, getContext: () => gl, clientWidth: w, clientHeight: h } as unknown as HTMLCanvasElement;
-const board = new Board3D({ canvas, context: gl as unknown as WebGLRenderingContext, width: w, height: h, pixelRatio: 1, makeCanvas: ((cw: number, ch: number) => createCanvas(cw, ch)) as unknown as (w: number, h: number) => HTMLCanvasElement });
+const board = new Board3D({ canvas, context: gl as unknown as WebGLRenderingContext, width: w, height: h, pixelRatio: 1, ldrPost: true, makeCanvas: ((cw: number, ch: number) => createCanvas(cw, ch)) as unknown as (w: number, h: number) => HTMLCanvasElement });
 const { cfg, view } = sampleGame();
 
 for (const styleId of styleArg.split(',') as StyleId[]) for (const lightId of lightArg.split(',') as LightId[]) {

@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { topology } from '../../engine/topology.ts';
 import { place } from './batch.ts';
-import { hexTopGeometry, hexXZ, noise2, SQ3 } from './geometry.ts';
+import { hexTopGeometry, hexXZ, noise2, rngFor, SQ3 } from './geometry.ts';
 import { Kit, scaleSat, tint } from './kit.ts';
 import { DRESS, hexNorm } from './props.ts';
 import type { SheepRef } from './props.ts';
@@ -64,6 +64,29 @@ function chipTexture(n: number, make: MakeCanvas): THREE.DataTexture {
   return textureFrom(c);
 }
 
+/** Layers of soil under each tile: a thin topsoil band, then stripes of earth that darken with depth, with speckle. */
+function strata(base: THREE.Color, make: MakeCanvas, keep: { dispose(): void }[]): THREE.DataTexture {
+  const W = 256, H = 64;
+  const c = make(W, H), g = c.getContext('2d')!;
+  const hsl = { h: 0, s: 0, l: 0 };
+  base.getHSL(hsl, THREE.SRGBColorSpace);
+  const rng = rngFor(Math.round(hsl.h * 1000) + 5);
+  const bands = [0, 0.12, 0.3, 0.46, 0.7, 1].map((y, i, a) => ({ y: y * H, to: (a[i + 1] ?? 1) * H, l: i === 0 ? hsl.l + 0.1 : 0.34 - i * 0.045 + (rng() - 0.5) * 0.06, s: i === 0 ? hsl.s : 0.28 + (rng() - 0.5) * 0.1 }));
+  for (const b of bands.slice(0, -1)) {
+    g.fillStyle = `hsl(${Math.round((i0(hsl.h, b) * 360))}, ${Math.round(b.s * 100)}%, ${Math.round(Math.max(0.1, b.l) * 100)}%)`;
+    g.fillRect(0, b.y, W, b.to - b.y); // textureFrom flips rows, so the canvas top lands at the top of the tile side
+  }
+  for (let i = 0; i < 420; i++) {
+    g.fillStyle = rng() < 0.5 ? 'rgba(0,0,0,0.13)' : 'rgba(255,255,255,0.08)';
+    const sz = 1 + rng() * 2.5;
+    g.fillRect(rng() * W, rng() * H, sz * 1.8, sz);
+  }
+  const tex = textureFrom(c);
+  keep.push(tex);
+  return tex;
+}
+const i0 = (h: number, b: { l: number }): number => (b.l > 0.4 ? h : 0.075);
+
 function badgeTexture(label: string, ring: string, make: MakeCanvas): THREE.DataTexture {
   const c = make(128, 128);
   const g = c.getContext('2d')!;
@@ -73,6 +96,49 @@ function badgeTexture(label: string, ring: string, make: MakeCanvas): THREE.Data
   g.fillStyle = '#2b2a28'; g.font = 'bold 44px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillText(label, 64, 66);
   return textureFrom(c);
+}
+
+/** Sea: a flat unlit plane whose color is computed per pixel from the distance to the nearest tile, so the shoreline is exact. */
+function seaMaterial(tiles: ({ x: number; z: number } | undefined)[], pal: Palette, light: LightPreset, time: { value: number }, style: StylePreset): THREE.MeshBasicMaterial {
+  const pts = tiles.filter((t): t is { x: number; z: number } => !!t).map((t) => new THREE.Vector2(t.x, t.z));
+  const mat = new THREE.MeshBasicMaterial({ color: light.waterTint, fog: true });
+  const col = (hex: string): THREE.Color => new THREE.Color(hex);
+  const uniforms = { uTime: time, uHex: { value: pts }, uShore: { value: col(pal.shore) }, uSea: { value: col(pal.sea) }, uDeep: { value: col(pal.deep) }, uSun: { value: new THREE.Color(light.sun) }, uGlint: { value: light.windows > 0.3 ? 0.35 : 1 }, uFoam: { value: style.flat ? 0 : 1 } };
+  mat.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec2 vW;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvW = (modelMatrix * vec4(position, 1.0)).xz;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+        varying vec2 vW; uniform float uTime; uniform vec2 uHex[${pts.length}]; uniform vec3 uShore, uSea, uDeep, uSun; uniform float uGlint, uFoam;
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y); }`)
+      .replace('#include <color_fragment>', `
+        float d = 99.0;
+        for (int i = 0; i < ${pts.length}; i++) {
+          vec2 q = vW - uHex[i];
+          float n = max(abs(q.x) / 0.8660254, abs(q.y) + abs(q.x) / 1.7320508);
+          d = min(d, (n - 1.0) * 0.8660254);
+        }
+        d = max(d, 0.0);
+        vec3 water = mix(uShore, uSea, smoothstep(0.0, 0.75, d));
+        water = mix(water, uDeep, 0.6 * smoothstep(0.8, 7.0, d));
+        float swell = vnoise(vW * 2.2 + vec2(uTime * 0.35, -uTime * 0.25)) * 0.6 + vnoise(vW * 5.0 - vec2(uTime * 0.5, uTime * 0.3)) * 0.4;
+        water *= 0.92 + 0.12 * swell;
+        // foam: a wavering white line at the shore plus a faint second one that rolls in and out
+        float edge = d + (swell - 0.5) * 0.07;
+        float line = smoothstep(0.06, 0.02, edge) * 0.9;
+        float roll = 0.11 + 0.05 * sin(uTime * 1.1);
+        float ring = smoothstep(0.03, 0.0, abs(edge - roll - 0.06)) * 0.45 * smoothstep(0.05, 0.12, vnoise(vW * 7.0 + uTime * 0.2));
+        water = mix(water, vec3(0.97), (line + ring) * uFoam);
+        // sun glints: tiny bright specks that blink on the swell
+        float sp = smoothstep(0.9, 0.985, vnoise(vW * 7.0 + vec2(uTime * 0.9, uTime * 0.6))) * smoothstep(0.55, 0.9, vnoise(vW * 1.3 - uTime * 0.1));
+        water += uSun * sp * 0.3 * uGlint * smoothstep(0.5, 1.5, d) * (1.0 - smoothstep(2.5, 5.0, d)) * uFoam;
+        diffuseColor.rgb = water * diffuse;`);
+  };
+  mat.customProgramCacheKey = () => `sea-${pts.length}`;
+  return mat;
 }
 
 export function buildBoard(o: BuildOpts): Built {
@@ -111,7 +177,9 @@ export function buildBoard(o: BuildOpts): Built {
 
     const colorAt = (lx: number, lz: number, y: number): THREE.Color => {
       const n = noise2((cx + lx) * 2.3, (cz + lz) * 2.3, 3);
-      return tint(hexColor, n * style.jitter * 0.25, n * style.jitter, n * style.jitter * 1.5 + (relief ? y * 0.5 : 0));
+      const rim = style.flat ? 0 : Math.max(0, hexNorm(lx, lz) - 0.7) / 0.3;
+      const speck = style.flat ? 0 : noise2((cx + lx) * 9, (cz + lz) * 9, 21) * style.jitter * 0.5;
+      return tint(hexColor, n * style.jitter * 0.25, n * style.jitter, n * style.jitter * 1.5 + speck + (relief ? y * 0.5 : 0) - rim * rim * 0.09);
     };
     const topGeo = hexTopGeometry(R * style.lip, style.topDetail, heightAt, colorAt);
     const topMesh = new THREE.Mesh(topGeo, topMat);
@@ -123,7 +191,7 @@ export function buildBoard(o: BuildOpts): Built {
     let side = sideMats.get(hx.terrain);
     if (!side) {
       const sideColor = style.tray ? tint('#8a5e3a', 0, 0, 0.02) : tint(hexColor, 0, -0.1, -0.2);
-      side = new THREE.MeshStandardMaterial({ color: sideColor, flatShading: style.flat, roughness: 0.95 });
+      side = new THREE.MeshStandardMaterial({ color: style.flat ? sideColor : '#ffffff', map: style.flat || style.tray ? null : strata(sideColor, o.makeCanvas, disposables), flatShading: style.flat, roughness: 0.95 });
       sideMats.set(hx.terrain, side);
     }
     const rim = new THREE.MeshStandardMaterial({ color: tint(hexColor, 0, -0.05, -0.1), flatShading: style.flat, roughness: 0.9 });
@@ -163,6 +231,7 @@ export function buildBoard(o: BuildOpts): Built {
     g.add(disc, face);
     scene.add(g);
     chips.push(g);
+    if (!style.flat) kit.batch('blob', 'blob', kit.blob(), { castShadow: false }).add(place(x + 0.02, tileTop[hx.id]! + 0.012, z + 0.03, 0.3, 1, 0.3));
   }
 
   // ---------------------------------------------------------------- pieces
@@ -193,6 +262,7 @@ export function buildBoard(o: BuildOpts): Built {
     const p = interPoint(Number(iid));
     const col = playerColor(b.player), yaw = (Number(iid) % 4) * 0.4;
     const k = (style.propScale > 1.2 ? 1.2 : 1) * 1.55;
+    if (!style.flat) kit.batch('blob', 'blob', kit.blob(0.5), { castShadow: false }).add(place(p.x, p.y + 0.008, p.z, (b.type === 'city' ? 0.34 : 0.22) * k, 1, (b.type === 'city' ? 0.26 : 0.22) * k));
     if (b.type === 'city') {
       bodies.add(place(p.x - 0.05 * k, p.y, p.z, 0.3 * k, 0.17 * k, 0.2 * k, yaw), col);
       roofs.add(place(p.x - 0.05 * k, p.y + 0.17 * k, p.z, 0.32 * k, 0.12 * k, 0.24 * k, yaw), tint(col, 0, 0, -0.18));
@@ -236,6 +306,7 @@ export function buildBoard(o: BuildOpts): Built {
 
   // ---------------------------------------------------------------- ports
   const boats = new THREE.Group();
+  const bobbers: { g: THREE.Object3D; y: number; yaw: number; phase: number }[] = [];
   const hullMat = new THREE.MeshStandardMaterial({ color: '#8a5a33', flatShading: style.flat, roughness: 0.8 });
   const sailMat = new THREE.MeshStandardMaterial({ color: '#f3efe6', flatShading: style.flat, roughness: 0.9, side: THREE.DoubleSide });
   const pierMat = new THREE.MeshStandardMaterial({ color: '#a87a4a', roughness: 0.85 });
@@ -260,6 +331,7 @@ export function buildBoard(o: BuildOpts): Built {
     boat.rotation.y = Math.atan2(out.x, out.z) + Math.PI / 2;
     boat.scale.setScalar(1.45);
     boats.add(boat);
+    bobbers.push({ g: boat, y: boat.position.y, yaw: boat.rotation.y, phase: bobbers.length * 1.7 });
     for (const p of [pa, pb]) {
       const dx = boat.position.x - p.x, dz = boat.position.z - p.z, len = Math.hypot(dx, dz);
       const pier = new THREE.Mesh(new THREE.BoxGeometry(len * 0.9, 0.03, 0.05), pierMat);
@@ -274,36 +346,11 @@ export function buildBoard(o: BuildOpts): Built {
 
   // ---------------------------------------------------------------- sea (or felt) and tray
   const seaR = maxR + 12;
-  const seaGeo = new THREE.CircleGeometry(seaR, 120, 0, Math.PI * 2);
-  seaGeo.rotateX(-Math.PI / 2);
-  const sp = seaGeo.getAttribute('position');
-  const seaCol: number[] = [];
-  const sea = new THREE.Color(pal.sea), shore = new THREE.Color(pal.shore), deep = new THREE.Color(pal.deep);
-  const tmp = new THREE.Color();
-  for (let i = 0; i < sp.count; i++) {
-    const x = sp.getX(i), z = sp.getZ(i);
-    let d = Infinity;
-    for (const t of tileXZ) if (t) d = Math.min(d, Math.hypot(x - t.x, z - t.z));
-    const edge = Math.max(0, d - 1);
-    tmp.copy(shore).lerp(sea, Math.min(1, edge / 0.9)).lerp(deep, Math.min(1, Math.max(0, edge - 0.8) / 4));
-    seaCol.push(tmp.r, tmp.g, tmp.b);
-  }
-  seaGeo.setAttribute('color', new THREE.Float32BufferAttribute(seaCol, 3));
   const seaUniform = { value: 0 };
-  const seaMat = new THREE.MeshBasicMaterial({ vertexColors: true, color: light.waterTint, fog: true });
-  seaMat.onBeforeCompile = (shader) => {
-    shader.uniforms.uTime = seaUniform;
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime;')
-      .replace('#include <color_vertex>', '#include <color_vertex>\nvColor *= 0.93 + 0.07 * sin(position.x * 2.3 + uTime * 1.2) * sin(position.z * 1.9 - uTime * 0.9);')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed.y += (sin(position.x * 2.1 + uTime * 1.3) + sin(position.z * 1.7 - uTime * 1.1)) * 0.012;');
-  };
-  seaMat.customProgramCacheKey = () => 'sea-basic-wave';
-  const seaMesh = new THREE.Mesh(seaGeo, seaMat);
-  seaMesh.position.y = 0;
-  seaMesh.receiveShadow = style.shadows;
+  const seaMesh = new THREE.Mesh(new THREE.PlaneGeometry(seaR * 2, seaR * 2, 1, 1).rotateX(-Math.PI / 2), seaMaterial(tileXZ, pal, light, seaUniform, style));
+  seaMesh.receiveShadow = false;
   scene.add(seaMesh);
-  disposables.push(seaGeo, seaMat);
+  disposables.push(seaMesh.geometry, seaMesh.material as THREE.Material);
 
   if (style.tray) {
     // a felt-topped board inside a wooden frame: the felt takes the shoreline gradient, the frame is a base slab with six rails
@@ -338,6 +385,21 @@ export function buildBoard(o: BuildOpts): Built {
     for (let k = 0; k < 6; k++) fit.push(new THREE.Vector3(Math.sin((k * Math.PI) / 3) * (trayR + 0.7), 0.3, Math.cos((k * Math.PI) / 3) * (trayR + 0.7)));
   }
 
+  // ---------------------------------------------------------------- birds (realistic only): a few gulls circling high over the sea
+  const gulls: { m: THREE.Mesh; r: number; h: number; speed: number; phase: number }[] = [];
+  if (!style.flat && light.windows < 0.3) {
+    const wing = new THREE.BufferGeometry();
+    wing.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0.05, -0.16, 0.02, -0.04, 0, 0, -0.05, 0, 0, 0.05, 0.16, 0.02, -0.04, 0, 0, -0.05], 3));
+    wing.computeVertexNormals();
+    const gullMat = new THREE.MeshBasicMaterial({ color: '#fbfbf6', side: THREE.DoubleSide, fog: true });
+    disposables.push(wing, gullMat);
+    for (let i = 0; i < 5; i++) {
+      const m = new THREE.Mesh(wing, gullMat);
+      scene.add(m);
+      gulls.push({ m, r: maxR + 1.8 + (i % 3) * 1.1, h: 1.9 + (i % 2) * 0.7 + i * 0.1, speed: 0.09 + (i % 3) * 0.02, phase: i * 1.3 });
+    }
+  }
+
   // ---------------------------------------------------------------- lights
   const hemi = new THREE.HemisphereLight(light.hemiSky, light.hemiGround, light.hemi);
   const sun = new THREE.DirectionalLight(light.sun, light.sunPower);
@@ -364,6 +426,12 @@ export function buildBoard(o: BuildOpts): Built {
       const a = t * 0.22 + s.phase;
       const x = s.home.x + Math.cos(a) * s.radius, z = s.home.z + Math.sin(a) * s.radius;
       s.batch.set(s.index, place(x, s.home.y + Math.abs(Math.sin(t * 2 + s.phase)) * 0.006, z, s.scale, s.scale, s.scale, -a - Math.PI / 2));
+    }
+    for (const o of bobbers) { o.g.position.y = o.y + Math.sin(t * 1.3 + o.phase) * 0.018; o.g.rotation.z = Math.sin(t * 1.1 + o.phase) * 0.05; }
+    for (const b of gulls) {
+      const a = t * b.speed + b.phase;
+      b.m.position.set(Math.cos(a) * b.r, b.h + Math.sin(t * 0.8 + b.phase) * 0.08, Math.sin(a) * b.r);
+      b.m.rotation.set(0, -a, Math.sin(t * 5 + b.phase) * 0.3); // banked into the circle, wings flapping
     }
     smokers.forEach((p, i) => {
       const u = ((t * 0.35 + i * 0.37) % 1);

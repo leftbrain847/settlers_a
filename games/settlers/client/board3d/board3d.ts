@@ -4,6 +4,26 @@ import type { Built, MakeCanvas } from './scene.ts';
 import type { LightPreset, Palette, StylePreset } from './style.ts';
 import type { GameConfig, GameView } from '../../engine/types.ts';
 
+/** Final pass: soft tilt-shift blur toward the top and bottom edges, a warm/cool grade and a light vignette, plus tone mapping (the scene renders in linear HDR first). */
+const POST_FRAG = `
+  uniform sampler2D tDiffuse; uniform vec2 uPx; uniform float uBlur, uVig, uGrade;
+  varying vec2 vUv;
+  void main() {
+    float away = smoothstep(0.28, 0.5, abs(vUv.y - 0.5));
+    vec2 r = uPx * uBlur * away * 2.2;
+    vec3 c = texture2D(tDiffuse, vUv).rgb * 0.28;
+    c += (texture2D(tDiffuse, vUv + vec2(r.x, 0.0)).rgb + texture2D(tDiffuse, vUv - vec2(r.x, 0.0)).rgb) * 0.14;
+    c += (texture2D(tDiffuse, vUv + vec2(0.0, r.y)).rgb + texture2D(tDiffuse, vUv - vec2(0.0, r.y)).rgb) * 0.14;
+    c += (texture2D(tDiffuse, vUv + r).rgb + texture2D(tDiffuse, vUv - r).rgb + texture2D(tDiffuse, vUv + vec2(r.x, -r.y)).rgb + texture2D(tDiffuse, vUv + vec2(-r.x, r.y)).rgb) * 0.07;
+    float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    c = mix(vec3(l), c, 1.0 + 0.1 * uGrade);
+    c *= mix(vec3(0.97, 0.99, 1.04), vec3(1.04, 1.01, 0.96), smoothstep(0.0, 0.8, l)) * uGrade + (1.0 - uGrade);
+    c *= 1.0 - uVig * smoothstep(0.35, 0.95, length((vUv - 0.5) * vec2(1.0, 1.15)));
+    gl_FragColor = vec4(c, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }`;
+
 export const ELEVATION = 0.96; // radians above the table (about 55 degrees): the Civ-style three-quarter view
 const FOV = 30;
 
@@ -13,6 +33,8 @@ export interface Board3DOptions {
   context?: WebGLRenderingContext | WebGL2RenderingContext;
   width: number; height: number; pixelRatio: number;
   makeCanvas: MakeCanvas;
+  /** previews only: run the post pass through an 8-bit target when the GPU has no float targets (clips highlights) */
+  ldrPost?: boolean;
 }
 
 /** Point the camera at the board from a fixed three-quarter angle, as close as keeps every point in frame. */
@@ -62,6 +84,9 @@ export class Board3D {
   private t0 = 0;
   private lastStyle: StylePreset | null = null;
   calm = false;
+  /** realistic styles draw through a post pass when the GPU can render to float textures */
+  post: { target: THREE.WebGLRenderTarget; quad: THREE.Mesh; cam: THREE.OrthographicCamera; scene: THREE.Scene; mat: THREE.ShaderMaterial } | null = null;
+  private wantPost = false;
 
   constructor(o: Board3DOptions) {
     this.opts = o;
@@ -84,7 +109,36 @@ export class Board3D {
     this.fogK = [light.fogNear, light.fogFar];
     if (this.lastStyle?.id !== style.id || !this.lastStyle) this.refit();
     this.lastStyle = style;
+    this.wantPost = style.post;
+    this.setupPost();
     this.refit();
+  }
+
+  private setupPost(): void {
+    const r = this.renderer;
+    if (!this.wantPost) { this.post?.target.dispose(); this.post = null; return; }
+    if (this.post) { this.sizePost(); return; }
+    const gl2 = (r.capabilities as { isWebGL2?: boolean }).isWebGL2;
+    const half = gl2 ? r.extensions.has('EXT_color_buffer_half_float') || r.extensions.has('EXT_color_buffer_float') : r.extensions.has('OES_texture_half_float') && r.extensions.has('EXT_color_buffer_half_float');
+    const flt = !half && (gl2 ? r.extensions.has('EXT_color_buffer_float') : r.extensions.has('OES_texture_float') && r.extensions.has('WEBGL_color_buffer_float'));
+    if (!half && !flt && !this.opts.ldrPost) return; // no HDR target: draw straight to the screen
+    const target = new THREE.WebGLRenderTarget(4, 4, { type: half ? THREE.HalfFloatType : flt ? THREE.FloatType : THREE.UnsignedByteType, depthBuffer: true, samples: gl2 ? 4 : 0, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { tDiffuse: { value: target.texture }, uPx: { value: new THREE.Vector2(1, 1) }, uBlur: { value: 1.6 }, uVig: { value: 0.22 }, uGrade: { value: 1 } },
+      vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+      fragmentShader: POST_FRAG, depthTest: false, depthWrite: false,
+    });
+    const scene = new THREE.Scene(), quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+    quad.frustumCulled = false; scene.add(quad);
+    this.post = { target, quad, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), scene, mat };
+    this.sizePost();
+  }
+
+  private sizePost(): void {
+    const p = this.post; if (!p) return;
+    const sz = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    p.target.setSize(sz.x, sz.y);
+    (p.mat.uniforms.uPx!.value as THREE.Vector2).set(1 / sz.x, 1 / sz.y);
   }
 
   refit(): void {
@@ -120,6 +174,7 @@ export class Board3D {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.sizePost();
     this.refit();
   }
 
@@ -137,7 +192,13 @@ export class Board3D {
     }
     b.tick(this.calm ? 0 : t);
     for (const c of b.chips) c.quaternion.copy(this.camera.quaternion);
-    this.renderer.render(b.scene, this.camera);
+    const p = this.post;
+    if (p) {
+      this.renderer.setRenderTarget(p.target);
+      this.renderer.render(b.scene, this.camera);
+      this.renderer.setRenderTarget(null);
+      this.renderer.render(p.scene, p.cam);
+    } else this.renderer.render(b.scene, this.camera);
   }
 
   start(): void {
@@ -148,5 +209,5 @@ export class Board3D {
 
   stop(): void { cancelAnimationFrame(this.raf); }
 
-  dispose(): void { this.stop(); this.built?.dispose(); this.renderer.dispose(); }
+  dispose(): void { this.stop(); this.post?.target.dispose(); this.built?.dispose(); this.renderer.dispose(); }
 }

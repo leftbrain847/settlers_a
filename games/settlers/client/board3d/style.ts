@@ -19,12 +19,13 @@ export interface StylePreset {
   tray: boolean;            // wooden tray around the board
   felt: boolean;            // matte cloth sea instead of water
   tone: 'none' | 'aces';
+  post: boolean;            // grade, vignette and tilt-shift through an HDR render target
 }
 
 export const STYLES: Record<StyleId, StylePreset> = {
-  civ: { id: 'civ', label: 'Civ', flat: true, shadows: false, relief: 0, topDetail: 1, lip: 0.94, propDensity: 1, propScale: 1, saturation: 1.12, jitter: 0.03, tray: false, felt: false, tone: 'none' },
-  realistic: { id: 'realistic', label: 'Realistic', flat: false, shadows: true, relief: 0.07, topDetail: 5, lip: 1, propDensity: 1.4, propScale: 0.9, saturation: 0.82, jitter: 0.07, tray: false, felt: false, tone: 'aces' },
-  tabletop: { id: 'tabletop', label: 'Tabletop', flat: true, shadows: true, relief: 0, topDetail: 1, lip: 0.9, propDensity: 0.7, propScale: 1.45, saturation: 1.0, jitter: 0.02, tray: true, felt: true, tone: 'aces' },
+  civ: { id: 'civ', label: 'Civ', flat: true, shadows: false, relief: 0, topDetail: 1, lip: 0.94, propDensity: 1, propScale: 1, saturation: 1.12, jitter: 0.03, tray: false, felt: false, tone: 'none', post: false },
+  realistic: { id: 'realistic', label: 'Realistic', flat: false, shadows: true, relief: 0.07, topDetail: 5, lip: 1, propDensity: 1.4, propScale: 0.9, saturation: 0.82, jitter: 0.07, tray: false, felt: false, tone: 'aces', post: true },
+  tabletop: { id: 'tabletop', label: 'Tabletop', flat: true, shadows: true, relief: 0, topDetail: 1, lip: 0.9, propDensity: 0.7, propScale: 1.45, saturation: 1.0, jitter: 0.02, tray: true, felt: true, tone: 'aces', post: false },
 };
 
 export interface LightPreset {
