@@ -1,7 +1,7 @@
 import { h, mount, clear } from './dom.js';
 import { applyTheme, THEMES } from './theme.js';
 import { BoardView } from './board-svg.js';
-import { LocalTransport, HUMAN } from '../transport/local.js';
+import { LocalTransport, SPEEDS } from '../transport/local.js';
 import { describeEvent } from './format.js';
 import { newSeed } from '../engine/index.js';
 import { FIELDS, defaults, toSettings } from './settings.js';
@@ -25,7 +25,7 @@ export function boot(root, { storage = safeStorage(), makeTransport = (o) => new
 class App {
   constructor(root, storage, makeTransport, sleep) {
     this.root = root; this.storage = storage; this.makeTransport = makeTransport; this.sleep = sleep;
-    this.prefs = { theme: 'ocean', name: 'You', bots: 2, values: defaults(), ...(readJson(storage, PREF_KEY) ?? {}) };
+    this.prefs = { theme: 'ocean', name: 'You', bots: 2, watch: false, speed: 1, values: defaults(), ...(readJson(storage, PREF_KEY) ?? {}) };
     applyTheme(this.prefs.theme);
     this.ui = null;
     this.snap = null;
@@ -60,6 +60,7 @@ class App {
       h('div.card.form',
         h('label.field', h('span', 'Your name'), h('input#name', { type: 'text', value: p.name, maxlength: 16, onchange: (e) => { p.name = e.target.value.trim() || 'You'; } })),
         h('label.field', h('span', 'Bot opponents'), h('select#bots', { onchange: (e) => { p.bots = Number(e.target.value); } }, [1, 2, 3].map((n) => h('option', { value: n, selected: n === p.bots }, `${n} bot${n > 1 ? 's' : ''}`)))),
+        h('label.field.check', h('input#watch', { type: 'checkbox', checked: !!p.watch, onchange: (e) => { p.watch = e.target.checked; } }), h('span', 'Watch only: a bot plays my seat too')),
         h('label.field', h('span', 'Color theme'), h('select#theme', { onchange: (e) => { p.theme = applyTheme(e.target.value); } }, Object.entries(THEMES).map(([k, t]) => h('option', { value: k, selected: k === p.theme }, t.label)))),
         h('details.settings', h('summary', 'Game settings'), ...fieldEls,
           h('button.btn.small', { type: 'button', onclick: () => { p.values = defaults(); this.savePrefs(); this.showLobby(); } }, 'Reset to defaults')),
@@ -71,11 +72,11 @@ class App {
   start() {
     const p = this.prefs;
     this.savePrefs();
-    this.launch({ settings: toSettings(p.values), name: p.name, numBots: p.bots, seed: newSeed() });
+    this.launch({ settings: toSettings(p.values), name: p.name, numBots: p.bots, seed: newSeed(), autopilot: p.watch, speed: p.speed });
   }
 
   resume(saved) {
-    this.launch({ settings: saved.settings, name: saved.name, numBots: saved.numBots, seed: saved.seed, strategy: saved.strategy, log: saved.log });
+    this.launch({ settings: saved.settings, name: saved.name, numBots: saved.numBots, seed: saved.seed, strategy: saved.strategy, log: saved.log, autopilot: saved.autopilot, speed: this.prefs.speed });
   }
 
   launch(opts) {
@@ -90,14 +91,14 @@ class App {
   buildGameDom() {
     const svg = h('svg#board', { xmlns: 'http://www.w3.org/2000/svg', preserveAspectRatio: 'xMidYMid meet' });
     this.dom = {
-      status: h('div.status'), dice: h('div.dice'), menu: h('button.icon#menu', { 'aria-label': 'Menu', onclick: () => this.openSheet('menu') }, '☰'),
+      status: h('div.status'), dice: h('div.dice'), watch: h('button.pill#watch', { onclick: () => this.t.setAutopilot(!this.snap.autopilot) }), speed: h('button.pill#speed', { 'aria-label': 'Playback speed', onclick: () => this.cycleSpeed() }), menu: h('button.icon#menu', { 'aria-label': 'Menu', onclick: () => this.openSheet('menu') }, '☰'),
       players: h('div.players'), banner: h('div.banner'), svg, hand: h('div.hand'), actions: h('div.actions'),
       toasts: h('div.toasts'), sheetHost: h('div.sheet-host'), overlay: h('div.overlay'),
     };
     this.board = new BoardView(svg, { onTap: (t) => this.onBoardTap(t) });
     mount(this.root,
       h('div.game',
-        h('div.top', this.dom.status, this.dom.dice, this.dom.menu),
+        h('div.top', this.dom.status, this.dom.dice, this.dom.watch, this.dom.speed, this.dom.menu),
         this.dom.players,
         h('div.boardwrap', svg, this.dom.banner, this.dom.toasts),
         h('div.dock', this.dom.hand, this.dom.actions),
@@ -105,6 +106,14 @@ class App {
   }
 
   send = (type, params) => this.t.send(type, params);
+
+  cycleSpeed() {
+    const i = SPEEDS.indexOf(this.snap.speed);
+    const next = SPEEDS[(i + 1) % SPEEDS.length];
+    this.prefs.speed = next === Infinity ? 1e9 : next;
+    this.savePrefs();
+    this.t.setSpeed(next);
+  }
 
   openSheet(type) { this.ui.sheet = this.ui.sheet === type ? null : type; this.render(); }
 
@@ -165,6 +174,7 @@ class App {
   }
 
   targetsFor(v, cfg) {
+    if (this.snap?.autopilot) return null;
     const legal = v.legal_actions;
     const myTurn = v.current_player === v.me;
     const fromBuild = (list, bt) => {
@@ -193,6 +203,7 @@ class App {
     const discarding = Object.keys(v.pending_discards);
     if (v.pending_discards[v.me]) return `Discard ${v.pending_discards[v.me]} cards`;
     if (discarding.length) return `Waiting for ${discarding.map(name).join(', ')} to discard`;
+    if (this.snap?.autopilot) return thinking || v.current_player !== v.me ? `Watching \u2014 ${name(v.current_player)} is playing\u2026` : 'Watching';
     const me = v.current_player === v.me;
     if (v.phase === 'setup') {
       const st = v.setup;
@@ -231,6 +242,10 @@ class App {
         h('span.pmeta', `${p.resource_count} cards · ${p.dev_card_count} dev${knights ? ` · ${knights} knight${knights > 1 ? 's' : ''}` : ''}`), ...badges);
     }));
 
+    const fmtSpeed = (x) => (x === Infinity || x >= 1e9 ? 'Max' : `${x}x`);
+    this.dom.watch.textContent = this.snap.autopilot ? 'Take over' : 'Watch';
+    this.dom.watch.classList.toggle('on', !!this.snap.autopilot);
+    this.dom.speed.textContent = fmtSpeed(this.snap.speed);
     this.dom.banner.textContent = this.bannerText(v, cfg, this.snap.thinking);
     this.dom.banner.classList.toggle('urgent', v.current_player === v.me && v.phase !== 'finished');
     this.renderToasts();
@@ -254,6 +269,7 @@ class App {
     const b = (label, onclick, o = {}) => btns.push(h('button.btn' + (o.primary ? '.primary' : '') + (o.cls ? '.' + o.cls : ''), { onclick, disabled: o.disabled }, label));
 
     if (v.phase === 'finished') { mount(this.dom.actions); return; }
+    if (this.snap.autopilot) { b('Take over my seat', () => this.t.setAutopilot(false), { primary: true }); mount(this.dom.actions, ...btns); return; }
     const sel = this.ui.pending && this.mode;
     if (sel) {
       b('Confirm', () => { const [type, params] = this.mode.apply(this.ui.pending.id); this.ui.pending = null; this.ui.buildMode = null; this.send(type, params); }, { primary: true });
@@ -279,7 +295,7 @@ class App {
   }
 
   autoSheet(v) {
-    if (v.phase === 'finished') return null;
+    if (v.phase === 'finished' || this.snap.autopilot) return null;
     if (v.pending_discards[v.me]) return { type: 'discard', title: 'Discard cards', modal: true };
     const myTurn = v.current_player === v.me;
     if (myTurn && v.pending_robber_steal) return { type: 'steal', title: 'Steal from', modal: true };

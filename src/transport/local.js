@@ -3,6 +3,7 @@ import { botPlan, createBots, actionDelayMs } from '../ai/driver.js';
 import { TradeClock } from './clock.js';
 
 export const HUMAN = 'p1';
+export const SPEEDS = [0.5, 1, 2, 4, Infinity];
 const START_RES = { none: 0, some: 5, plenty: 10 };
 
 /**
@@ -10,7 +11,7 @@ const START_RES = { none: 0, some: 5, plenty: 10 };
  * subscribe()/send(), so the online transport (WebSocket to a Durable Object) is a drop-in swap.
  */
 export class LocalTransport {
-  constructor({ settings = {}, name = 'You', numBots = 2, seed, strategy = 'smart', now = () => Date.now(), sleep, log = [] }) {
+  constructor({ settings = {}, name = 'You', numBots = 2, seed, strategy = 'smart', now = () => Date.now(), sleep, log = [], autopilot = false, speed = 1 }) {
     this.settings = settings; this.name = name; this.numBots = numBots; this.seed = seed >>> 0; this.strategy = strategy;
     this.now = now;
     this.sleep = sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
@@ -20,6 +21,8 @@ export class LocalTransport {
     this.pumping = false;
     this.destroyed = false;
     this.timer = null;
+    this.autopilot = false;
+    this.speed = speed >= 1e9 ? Infinity : speed;
 
     let s = createGame(this.cfg, { game_id: `local-${this.seed.toString(36)}`, seed: this.seed });
     s = addPlayer(this.cfg, s, { name, id: HUMAN });
@@ -37,7 +40,26 @@ export class LocalTransport {
     for (const a of log) { const r = reduce(this.cfg, this.state, a); if (r.ok) { this.state = r.state; this.actionLog.push(a); } }
     this.botRng.rng = (this.botRng.rng + this.actionLog.length) >>> 0;
     this.clock.sync(this.state, this.now());
+    if (autopilot) this.applyAutopilot(true);
   }
+
+  // Hand the human seat to a bot (or take it back). Not part of the game log: it is a seat setting, not a move.
+  applyAutopilot(on) {
+    const p = this.state.players[HUMAN];
+    this.state = { ...this.state, players: { ...this.state.players, [HUMAN]: { ...p, is_ai: on } } };
+    if (on) this.bots[HUMAN] = createBots({ [HUMAN]: this.strategy })[HUMAN];
+    else delete this.bots[HUMAN];
+    this.autopilot = on;
+  }
+
+  setAutopilot(on) {
+    if (on === this.autopilot) return;
+    this.applyAutopilot(on);
+    this.emit([]);
+    this.pump();
+  }
+
+  setSpeed(x) { this.speed = x; this.emit([]); }
 
   subscribe(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
 
@@ -48,6 +70,8 @@ export class LocalTransport {
       cfg: this.cfg,
       deadlines: Object.fromEntries(this.clock.deadlines),
       now: this.now(),
+      autopilot: this.autopilot,
+      speed: this.speed,
       ...extra,
     };
   }
@@ -78,7 +102,7 @@ export class LocalTransport {
   }
 
   save() {
-    return { v: 1, settings: this.settings, name: this.name, numBots: this.numBots, seed: this.seed, strategy: this.strategy, log: this.actionLog };
+    return { v: 1, settings: this.settings, name: this.name, numBots: this.numBots, seed: this.seed, strategy: this.strategy, log: this.actionLog, autopilot: this.autopilot, speed: this.speed };
   }
 
   destroy() { this.destroyed = true; clearTimeout(this.timer); this.listeners.clear(); }
@@ -98,10 +122,11 @@ export class LocalTransport {
         if (!plan.length) break;
         this.emit([], { thinking: plan[0].player_id });
         const version = this.actionLog.length;
-        await this.sleep(actionDelayMs(plan[0]));
+        await this.sleep(this.speed === Infinity ? 0 : actionDelayMs(plan[0]) / this.speed);
         if (this.destroyed) break;
         if (this.actionLog.length !== version) continue; // the human acted while we waited: replan
         for (const a of plan) {
+          if (a.player_id !== SYSTEM && !this.bots[a.player_id]) break; // seat was taken back while we waited
           const r = this.apply(a);
           if (!r.ok) { rejected++; console.warn('bot move rejected', r.error, a); }
         }

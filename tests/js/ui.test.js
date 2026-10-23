@@ -165,3 +165,18 @@ test('large boards render (8 rings) and small labels are dropped', async () => {
   assert.equal($$('polygon.hex').length, 3 * 8 * 7 + 1);
   assert.equal($$('.terrain-label').length, 0);
 });
+
+test('Watch hands the seat to a bot, hides the controls, and Take over returns it; speed button cycles', async () => {
+  const { app } = start();
+  await settle(app);
+  assert.equal($('#speed').textContent, '1x');
+  for (const want of ['2x', '4x', 'Max', '0.5x', '1x']) { $('#speed').click(); assert.equal($('#speed').textContent, want); }
+  $('#watch').click();
+  await settle(app);
+  assert.equal($('#watch').textContent, 'Take over');
+  assert.ok(app.snap.view.turn_number >= 1);
+  assert.equal($$('.target-hit').length, 0, 'no placement prompts while watching');
+  assert.equal($$('.sheet').length, 0);
+  $('#watch').click();
+  assert.equal($('#watch').textContent, 'Watch');
+}, { timeout: 60000 });
