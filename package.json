@@ -7,8 +7,9 @@
     "typecheck": "tsc --noEmit && tsc -p host/tsconfig.json --noEmit",
     "build": "node scripts/build.mjs",
     "e2e": "node tests/e2e/e2e.ts",
-    "host:dev": "cd host && wrangler dev --local",
-    "host:deploy": "cd host && wrangler deploy"
+    "host:dev": "npm run build:host && cd host && wrangler dev --local",
+    "host:deploy": "npm run build:host && cd host && wrangler deploy",
+    "build:host": "node scripts/build-host.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261023.1",

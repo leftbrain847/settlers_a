@@ -14,6 +14,8 @@ export class Client {
   closed: { code: number; reason: string } | null = null;
   token = newToken();
   seat: string | null = null;
+  push: ((m: S2C) => void) | null = null;
+  onClose: ((code: number) => void) | null = null;
   net: Net;
   constructor(net: Net, id: string) { this.net = net; this.id = id; }
   async send(msg: object | string): Promise<void> { await this.net.deliver(this.id, typeof msg === 'string' ? msg : JSON.stringify(msg)); }
@@ -54,10 +56,10 @@ export class Net {
   async deliver(id: string, raw: string): Promise<void> { this.flush(await this.core.message(id, raw, this.now)); }
 
   flush(out: Out): void {
-    for (const s of out.sends) { this.everySent.push(JSON.stringify(s.msg)); this.clients.get(s.to)?.inbox.push(s.msg); }
+    for (const s of out.sends) { this.everySent.push(JSON.stringify(s.msg)); const cl = this.clients.get(s.to); cl?.inbox.push(s.msg); cl?.push?.(s.msg); }
     for (const c of out.closes) {
       const cl = this.clients.get(c.to);
-      if (cl && !cl.closed) { cl.closed = { code: c.code, reason: c.reason }; void this.core.close(c.to, this.now); }
+      if (cl && !cl.closed) { cl.closed = { code: c.code, reason: c.reason }; void this.core.close(c.to, this.now); cl.onClose?.(c.code); }
     }
   }
 
@@ -87,4 +89,21 @@ export class Net {
     this.flush(out);
     return !dead;
   }
+}
+
+/** A WebSocket-shaped object wired straight into the in-memory room (what WsTransport talks to in tests). */
+export class LoopbackSocket {
+  onopen: (() => void) | null = null;
+  onmessage: ((e: { data: unknown }) => void) | null = null;
+  onclose: ((e: { code: number }) => void) | null = null;
+  onerror: (() => void) | null = null;
+  client: Client;
+  constructor(net: Net) {
+    this.client = net.connect();
+    this.client.push = (m) => { setTimeout(() => this.onmessage?.({ data: JSON.stringify(m) }), 0); };
+    this.client.onClose = (code) => { setTimeout(() => this.onclose?.({ code }), 0); };
+    setTimeout(() => this.onopen?.(), 0);
+  }
+  send(data: string): void { void this.client.send(data); }
+  close(code = 1000): void { if (!this.client.closed) { this.client.closed = { code, reason: 'client' }; void this.client.net.core.close(this.client.id, this.client.net.now); setTimeout(() => this.onclose?.({ code }), 0); } }
 }

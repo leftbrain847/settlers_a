@@ -5,7 +5,10 @@ import type { BoardTap } from './board-svg.ts';
 import { LocalTransport, SPEEDS } from '../../../client-sdk/local.ts';
 import { describeEvent } from './format.ts';
 import { newSeed } from '../engine/index.ts';
-import { FIELDS, defaults, toSettings } from './settings.ts';
+import { defaults, toSettings } from './settings.ts';
+import { settingsFields } from './settings-form.ts';
+import { OnlineController, defaultEnv } from './online.ts';
+import type { OnlineEnv } from './online.ts';
 import type { SettingValue } from './settings.ts';
 import * as sheets from './sheets.ts';
 import { handOf, isLegal } from './ui-types.ts';
@@ -40,11 +43,15 @@ function safeStorage(): KeyValueStore | null {
 const readJson = <T,>(st: KeyValueStore | null, k: string): T | null => { try { return JSON.parse(st?.getItem(k) ?? 'null') as T | null; } catch { return null; } };
 const writeJson = (st: KeyValueStore | null, k: string, v: unknown): void => { try { st?.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable: play on */ } };
 
-export interface BootOptions { storage?: KeyValueStore | null; makeTransport?: MakeTransport; autoSleep?: Sleep }
+declare const __ONLINE__: boolean | undefined;
+const ONLINE_BUILD = typeof __ONLINE__ === 'undefined' || __ONLINE__;
 
-export function boot(root: HTMLElement, { storage = safeStorage(), makeTransport = (o) => new LocalTransport(o), autoSleep }: BootOptions = {}): App {
-  const app = new App(root, storage, makeTransport, autoSleep);
-  app.showLobby();
+export interface BootOptions { storage?: KeyValueStore | null; makeTransport?: MakeTransport; autoSleep?: Sleep; online?: OnlineEnv | false }
+
+export function boot(root: HTMLElement, { storage = safeStorage(), makeTransport = (o) => new LocalTransport(o), autoSleep, online }: BootOptions = {}): App {
+  const env = online === false || !ONLINE_BUILD ? null : (online ?? defaultEnv());
+  const app = new App(root, storage, makeTransport, autoSleep, env);
+  if (!app.online?.openFromUrl()) app.showLobby();
   return app;
 }
 
@@ -63,8 +70,10 @@ export class App {
   board!: BoardView;
   mode: Mode | null = null;
   declining = false;
+  online: OnlineController | null;
 
-  constructor(root: HTMLElement, storage: KeyValueStore | null, makeTransport: MakeTransport, sleep: Sleep | undefined) {
+  constructor(root: HTMLElement, storage: KeyValueStore | null, makeTransport: MakeTransport, sleep: Sleep | undefined, onlineEnv: OnlineEnv | null = null) {
+    this.online = onlineEnv ? new OnlineController(this, onlineEnv) : null;
     this.root = root; this.storage = storage; this.makeTransport = makeTransport; this.sleep = sleep;
     this.prefs = { theme: 'ocean', name: 'You', bots: 2, watch: false, speed: 1, values: defaults(), ...(readJson<Partial<Prefs>>(storage, PREF_KEY) ?? {}) };
     applyTheme(this.prefs.theme);
@@ -83,25 +92,15 @@ export class App {
 
   // ------------------------------------------------------------------ lobby
   showLobby(): void {
+    this.online?.reset();
     this.t?.destroy(); this.t = null; this.snap = null;
     const p = this.prefs;
     const saved = readJson<SaveData>(this.storage, SAVE_KEY);
-    const fieldEls = FIELDS.map((f) => {
-      if ('group' in f) return h('h4.group', f.group);
-      const val = p.values[f.key] ?? f.def;
-      let input: HTMLElement;
-      if (f.type === 'select') input = h('select', { onchange: (e) => { p.values[f.key] = selectOf(e).value; } }, f.options.map(([v, l]) => h('option', { value: v, selected: v === val }, l)));
-      else if (f.type === 'checkbox') input = h('input', { type: 'checkbox', checked: !!val, onchange: (e) => { p.values[f.key] = inputOf(e).checked; } });
-      else if (f.type === 'range') {
-        const out = h('span.dim.small', f.fmt(Number(val)));
-        input = h('div.rangewrap', h('input', { type: 'range', min: f.min, max: f.max, value: val, oninput: (e) => { const n = Number(inputOf(e).value); p.values[f.key] = n; out.textContent = f.fmt(n); } }), out);
-      } else input = h('input', { type: 'number', inputmode: 'numeric', min: f.min, max: f.max, value: val, onchange: (e) => { const el = inputOf(e); const v = Math.min(f.max, Math.max(f.min, Number(el.value) || f.def)); p.values[f.key] = v; el.value = String(v); } });
-      return h('label.field', h('span', f.label), input);
-    });
+    const fieldEls = settingsFields(p.values);
 
     const lobby = h('div.lobby',
       h('h1', 'Settlers'),
-      h('p.dim', 'Play against bots. Hosting games with friends comes next.'),
+      h('p.dim', 'Play against bots, or with friends.'),
       h('div.card.form',
         h('label.field', h('span', 'Your name'), h('input#name', { type: 'text', value: p.name, maxlength: 16, onchange: (e) => { p.name = inputOf(e).value.trim() || 'You'; } })),
         h('label.field', h('span', 'Bot opponents'), h('select#bots', { onchange: (e) => { p.bots = Number(selectOf(e).value); } }, [1, 2, 3].map((n) => h('option', { value: n, selected: n === p.bots }, `${n} bot${n > 1 ? 's' : ''}`)))),
@@ -110,7 +109,8 @@ export class App {
         h('details.settings', h('summary', 'Game settings'), ...fieldEls,
           h('button.btn.small', { type: 'button', onclick: () => { p.values = defaults(); this.savePrefs(); this.showLobby(); } }, 'Reset to defaults')),
         h('button.btn.primary.big#start', { onclick: () => this.start() }, 'Start game'),
-        saved ? h('button.btn#resume', { onclick: () => this.resume(saved) }, 'Resume saved game') : null));
+        saved ? h('button.btn#resume', { onclick: () => this.resume(saved) }, 'Resume saved game') : null),
+      this.online?.card() ?? null);
     mount(this.root, lobby);
   }
 
@@ -126,12 +126,20 @@ export class App {
 
   launch(opts: Omit<TransportOptions, 'sleep'>): void {
     const t = this.makeTransport({ ...opts, sleep: this.sleep });
+    this.attach(t);
+    t.start();
+  }
+
+  /** Show the game screen for a transport that is already (or about to be) running. */
+  attach(t: Transport): void {
     this.t = t;
+    this.snap = null;
     this.ui = emptyUi();
     this.buildGameDom();
     t.subscribe((snap) => this.onSnapshot(snap));
-    t.start();
   }
+
+  refresh(): void { this.render(); }
 
   // ------------------------------------------------------------------ game dom
   buildGameDom(): void {
@@ -294,6 +302,7 @@ export class App {
     this.dom.watch.textContent = this.snap.autopilot ? 'Take over' : 'Watch';
     this.dom.watch.classList.toggle('on', !!this.snap.autopilot);
     this.dom.speed.textContent = fmtSpeed(this.snap.speed);
+    this.dom.speed.hidden = !!this.online?.inRoom && !this.online.isHost;
     this.dom.banner.textContent = this.bannerText(v, cfg, this.snap.thinking);
     this.dom.banner.classList.toggle('urgent', v.current_player === v.me && v.phase !== 'finished');
     this.renderToasts();
@@ -390,6 +399,7 @@ export class App {
       h('button.btn', { onclick: () => { this.ui.sheet = 'log'; this.render(); } }, 'Game log'),
       h('button.btn', { onclick: () => { this.board.resetZoom(); this.ui.sheet = null; this.render(); } }, 'Reset board zoom'),
       h('p.dim.small', `${cfg.name} · ${cfg.win_conditions[0]?.params.threshold} VP to win · ${v.board.rings} rings`),
+      this.online?.inRoom ? this.online.menuSection() : null,
       h('button.btn.danger', { onclick: () => { if (this.ui.confirmLeave) this.showLobby(); else { this.ui.confirmLeave = true; this.render(); } } }, this.ui.confirmLeave ? 'Tap again to leave (progress is saved)' : 'Leave game'));
   }
 

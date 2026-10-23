@@ -116,3 +116,11 @@ h4.group { margin-top: 16px; }
 .pill { min-width: 44px; min-height: 36px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-weight: 700; font-size: 13px; cursor: pointer; }
 .pill.on { background: var(--accent2); color: #1b1b1b; border-color: var(--accent2); }
 .field.check { flex-direction: row; align-items: center; gap: 10px; }
+
+/* online */
+h3 { font-size: 16px; }
+.err { color: #ff8a8a; min-height: 1em; }
+.warn { color: var(--accent2); }
+code.link { display: block; padding: 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); font-size: 12px; word-break: break-all; user-select: all; }
+.rejoin { border-color: var(--accent); }
+.seat-pick { min-height: 36px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); max-width: 45%; }

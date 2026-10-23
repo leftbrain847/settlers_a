@@ -14,3 +14,6 @@ __pycache__/
 dist/
 .dev.vars
 .wrangler/
+host/public/index.html
+host/public/app.js
+host/public/style.css

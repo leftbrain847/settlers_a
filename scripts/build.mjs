@@ -3,7 +3,7 @@ import { build } from 'esbuild';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const result = await build({
-  entryPoints: ['games/settlers/client/main.ts'], bundle: true, minify: true, format: 'iife', target: 'es2020', write: false,
+  entryPoints: ['games/settlers/client/main.ts'], bundle: true, minify: true, format: 'iife', target: 'es2020', write: false, define: { __ONLINE__: 'false' },
 });
 const js = result.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 const css = readFileSync('games/settlers/client/style.css', 'utf8');
