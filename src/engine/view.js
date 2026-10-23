@@ -36,7 +36,7 @@ export function viewFor(cfg, s, pid) {
     board: {
       rings: s.board.rings,
       hexes: s.board.hexes.map((h) => ({ id: h.id, terrain: h.terrain, number_token: h.number_token, q: h.q, r: h.r })),
-      ports: s.board.ports, robber_hex: s.board.robber_hex, buildings: s.board.buildings,
+      ports: s.board.ports, port_slots: s.board.port_slots, robber_hex: s.board.robber_hex, buildings: s.board.buildings,
     },
     players,
     trade_offers: s.trade_offers,

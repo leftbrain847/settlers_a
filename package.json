@@ -5,6 +5,11 @@
   "scripts": {
     "test": "node --test \"tests/js/*.test.js\"",
     "typecheck": "echo 'enable once tsc is added (see TS migration phase)'",
-    "oracle": "node tests/oracle/gen_traces.mjs .oracle-traces 30 && python3 tests/oracle/replay.py .oracle-traces"
+    "oracle": "node tests/oracle/gen_traces.mjs .oracle-traces 30 && python3 tests/oracle/replay.py .oracle-traces",
+    "build": "node scripts/build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "jsdom": "^29.1.1"
   }
 }

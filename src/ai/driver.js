@@ -32,8 +32,8 @@ export function botPlan(cfg, s, bots, rng) {
     });
   }
 
+  const counters = counterIds(s);
   if (s.phase === 'playing') {
-    const counters = counterIds(s);
     // 2. Bots answer open offers (never counters: those are addressed to the original offerer).
     for (const offer of Object.values(s.trade_offers)) {
       if (counters.has(offer.id)) continue;

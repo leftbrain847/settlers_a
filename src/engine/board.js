@@ -47,22 +47,24 @@ export function generateBoard(cfg, src) {
   }
   for (const [hid, n] of assignment) hexes[hid].number_token = n;
 
-  return { hexes, ports: assignPorts(cfg, topo, src), robber_hex: desert };
+  const { ports, port_slots } = assignPorts(cfg, topo, src);
+  return { hexes, ports, port_slots, robber_hex: desert };
 }
 
 function assignPorts(cfg, topo, src) {
   const tpl = cfg.board_template;
   const ports = {};
+  const port_slots = []; // [a, b, portType]: the two harbour intersections of each port
   const coastal = new Set(topo.intersections.filter((i) => i.hexIds.length < 3).map((i) => i.id));
-  if (!coastal.size || !tpl.port_counts) return ports;
+  if (!coastal.size || !tpl.port_counts) return { ports, port_slots };
 
   const bag = [];
   for (const [id, n] of Object.entries(tpl.port_counts)) for (let i = 0; i < n; i++) bag.push(id);
   shuffle(src, bag);
-  if (!bag.length) return ports;
+  if (!bag.length) return { ports, port_slots };
 
   const exterior = topo.edges.filter((e) => coastal.has(e.a) && coastal.has(e.b));
-  if (!exterior.length) return ports;
+  if (!exterior.length) return { ports, port_slots };
 
   const adj = new Map();
   for (const e of exterior) {
@@ -104,6 +106,7 @@ function assignPorts(cfg, topo, src) {
         if (!used.has(a) && !used.has(b)) {
           ports[a] = bag[idx];
           ports[b] = bag[idx];
+          port_slots.push([a, b, bag[idx]]);
           used.add(a); used.add(b);
           idx++;
           found = true;
@@ -112,5 +115,5 @@ function assignPorts(cfg, topo, src) {
       }
     }
   }
-  return ports;
+  return { ports, port_slots };
 }

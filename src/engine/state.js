@@ -14,7 +14,7 @@ export function createGame(cfg, { game_id, seed }) {
     phase: 'lobby',
     config_name: cfg.name,
     rng: seed >>> 0,
-    board: { rings: cfg.board_template.num_rings, hexes: [], ports: {}, robber_hex: null, buildings: { i: {}, e: {} } },
+    board: { rings: cfg.board_template.num_rings, hexes: [], ports: {}, port_slots: [], robber_hex: null, buildings: { i: {}, e: {} } },
     players: {},
     player_order: [],
     current_player_idx: 0,
@@ -82,6 +82,7 @@ export function startGame(cfg, state, opts = {}) {
   const b = generateBoard(cfg, s);
   s.board.hexes = b.hexes;
   s.board.ports = b.ports;
+  s.board.port_slots = b.port_slots;
   s.board.robber_hex = b.robber_hex;
 
   const deck = [];

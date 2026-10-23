@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { configFromSettings, createGame, addPlayer, startGame } from '../../src/engine/index.js';
-import { createBots, runBotsSync } from '../../src/ai/driver.js';
+import { botPlan, createBots, runBotsSync } from '../../src/ai/driver.js';
 import { TradeClock } from '../../src/transport/clock.js';
 
 function botGame(seed, spec, settings = { vp_to_win: 10 }) {
@@ -54,6 +54,22 @@ test('a human among bots: bots stop and wait on the human turn', () => {
   const bots = createBots({ p2: 'smart' });
   const rng = { rng: 3 };
   assert.equal(runBotsSync(cfg, s, bots, rng).setup_player_idx, 0, 'waits for the human placing first');
+});
+
+test('a bot with an open offer waits for the human instead of acting (and does not throw)', () => {
+  const cfg = configFromSettings({});
+  let s = createGame(cfg, { game_id: 'w', seed: 11 });
+  s = addPlayer(cfg, s, { name: 'Human' });
+  s = addPlayer(cfg, s, { name: 'Bot', is_ai: true });
+  s = startGame(cfg, s).state;
+  s.phase = 'playing'; s.current_player_idx = 1; s.dice_rolled = true; s.turn_number = 3;
+  s.players.p2.resources.wood = 2; s.players.p1.resources.clay = 0;
+  s.trade_offers = { t1: { id: 't1', from_player: 'p2', offering: { wood: 1 }, requesting: { clay: 1 }, responses: {}, counter_ids: [] } };
+  const bots = createBots({ p2: 'smart' });
+  assert.deepEqual(botPlan(cfg, s, bots, { rng: 1 }), []);
+  s.trade_offers.t1.responses.p1 = 'declined';
+  const plan = botPlan(cfg, s, bots, { rng: 1 });
+  assert.equal(plan[0].type, 'trade_expire');
 });
 
 test('TradeClock: 70s for human offers, 20s for bot offers, 15s for counters, early expiry when all decline', () => {
