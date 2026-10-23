@@ -19,6 +19,14 @@ export const THEMES = {
     players: ['#BF616A', '#5E81AC', '#ECEFF4', '#D08770', '#B48EAD', '#88C0D0'],
     resources: { clay: '#BF616A', wood: '#A3BE8C', rock: '#81A1C1', wheat: '#EBCB8B', sheep: '#8FBCBB' },
   },
+  night: {
+    label: 'Night',
+    vars: { '--bg': '#0a0e18', '--panel': '#111827', '--card': '#1a2338', '--text': '#dfe6f3', '--dim': '#8190ab', '--border': '#26324d',
+      '--accent': '#7aa2f7', '--accent2': '#e0af68', '--good': '#9ece6a', '--sea': '#12213b', '--sea2': '#0a1528' },
+    terrain: { hills: '#a4503f', forest: '#2f6d48', mountains: '#5f6e7e', fields: '#b39b42', pasture: '#3d8f7c', desert: '#a79b78' },
+    players: ['#ff6b6b', '#4dd0e1', '#ffe082', '#b39ddb', '#f48fb1', '#80e8b0'],
+    resources: { clay: '#c8624f', wood: '#3f8f5e', rock: '#7d8ea0', wheat: '#d4b94e', sheep: '#4fb39c' },
+  },
   pastel: {
     label: 'Pastel',
     vars: { ...chrome, '--accent': '#e8956d', '--accent2': '#f0c878', '--good': '#88c890', '--sea': '#98c8dc', '--sea2': '#80b8d0' },
