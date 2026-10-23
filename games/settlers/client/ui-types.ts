@@ -1,0 +1,44 @@
+import type { ActionParams, ActionType, GameConfig, GameView, LegalAction, LegalOf, PlayerView, ResMap, TradeOffer } from '../engine/types.ts';
+import type { Snapshot } from '../../../client-sdk/transport.ts';
+
+export type Kind = 'i' | 'e' | 'h';
+export type SheetName = 'build' | 'trade' | 'dev' | 'log' | 'menu';
+export type Move = { [K in ActionType]: [K, ActionParams[K]] }[ActionType];
+export type SendFn = <T extends ActionType>(type: T, params?: ActionParams[T]) => void;
+
+export interface Draft {
+  discard?: ResMap;
+  yop?: ResMap;
+  tradeTab?: 'players' | 'bank';
+  trade?: { give: ResMap; want: ResMap };
+  bank?: { give: string | null; want: string | null };
+  counter?: { for: string; they: ResMap; you: ResMap } | null;
+}
+export interface Toast { text: string; bad: boolean; id: number }
+export interface UiState {
+  sheet: SheetName | null;
+  draft: Draft;
+  pending: { kind: Kind; id: number } | null;
+  buildMode: string | null;
+  toasts: Toast[];
+  muteUntilTurn: number;
+  lastSaved: number;
+  confirmLeave?: boolean;
+}
+
+/** What the board should highlight, and the piece to preview for a tapped spot. */
+export interface BoardTargets {
+  i?: Set<number>; e?: Set<number>; h?: Set<number>;
+  ghost?: { kind: Kind; id: number; type?: string; player: string } | null;
+}
+export interface Mode { kind: Kind; ids: Set<number>; piece?: string; apply(id: number): Move; label: string }
+
+export interface SheetCtx { view: GameView; cfg: GameConfig; ui: UiState; snap: Snapshot; send: SendFn; rerender: () => void }
+export interface IncomingCtx extends SheetCtx { offer: TradeOffer }
+export interface WaitingCtx extends SheetCtx { offer: TradeOffer; counters: TradeOffer[] }
+
+/** Type guard factory: legal.filter(isLegal('build')) yields the build entries, fully typed. */
+export const isLegal = <T extends LegalAction['type']>(t: T) => (a: LegalAction): a is LegalOf<T> => a.type === t;
+
+/** Own-seat hands are always present in a view; this makes the optional field safe to read. */
+export const handOf = (p: PlayerView): ResMap => p.resources ?? {};

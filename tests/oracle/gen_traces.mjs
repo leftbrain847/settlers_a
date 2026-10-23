@@ -1,8 +1,8 @@
 // usage: node tests/oracle/gen_traces.mjs <outDir> [count]
 // Writes seeded random-game traces for tests/oracle/replay.py to replay through the Python engine.
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { playRandom } from '../js/helpers.js';
-import { topology } from '../../src/engine/index.js';
+import { playRandom } from '../unit/helpers.ts';
+import { topology } from '../../games/settlers/engine/index.ts';
 import { norm } from './norm.mjs';
 
 const out = process.argv[2];
