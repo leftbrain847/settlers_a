@@ -1,0 +1,9 @@
+{
+  "name": "settlers",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"tests/js/*.test.js\"",
+    "typecheck": "echo 'enable once tsc is added (see TS migration phase)'"
+  }
+}
