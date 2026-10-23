@@ -1,0 +1,17 @@
+:root { color-scheme: dark; }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body, #app { height: 100%; background: #0b1020; color: #e8ecf4; font: 14px/1.35 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; overflow: hidden; overscroll-behavior: none; }
+.stage { position: relative; height: 100%; }
+canvas.gl { width: 100%; height: 100%; display: block; touch-action: none; }
+.ui { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 8px; padding: 28px max(14px, env(safe-area-inset-right)) 12px max(14px, env(safe-area-inset-left)); background: linear-gradient(rgba(8, 12, 24, 0), rgba(8, 12, 24, 0.88) 45%); }
+.row { display: flex; align-items: center; gap: 10px; }
+.lab { flex: none; width: 56px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #8f9cb8; }
+.chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
+.chip { flex: none; min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid #33416b; background: rgba(27, 36, 64, 0.85); color: #e8ecf4; font: inherit; font-weight: 600; cursor: pointer; }
+.chip.on { background: #f4a261; border-color: #f4a261; color: #1b1b1b; }
+.fps { margin-left: auto; color: #8f9cb8; font-variant-numeric: tabular-nums; font-size: 12px; }
+.fallback { height: 100%; overflow: auto; padding: 16px max(16px, env(safe-area-inset-left)); display: flex; flex-direction: column; gap: 12px; }
+.imgs { display: flex; flex-wrap: wrap; gap: 12px; }
+.imgs figure { flex: 1 1 220px; min-width: 0; }
+.imgs img { width: 100%; max-width: 100%; display: block; border-radius: 10px; }
+.imgs figcaption { padding-top: 4px; color: #8f9cb8; text-transform: capitalize; }

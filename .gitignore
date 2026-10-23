@@ -17,3 +17,4 @@ dist/
 host/public/index.html
 host/public/app.js
 host/public/style.css
+tools/*.png
