@@ -29,8 +29,8 @@ export function pick<T>(src: RngSource, arr: T[]): T {
 
 // Impure helper for callers (rooms, UI) that need a fresh seed. Never used inside the reducer.
 export function newSeed(): number {
-  if (globalThis.crypto?.getRandomValues) {
-    return globalThis.crypto.getRandomValues(new Uint32Array(1))[0];
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    return crypto.getRandomValues(new Uint32Array(1))[0]!;
   }
   return (Math.random() * 4294967296) >>> 0;
 }

@@ -12,3 +12,5 @@ build/
 node_modules/
 __pycache__/
 dist/
+.dev.vars
+.wrangler/

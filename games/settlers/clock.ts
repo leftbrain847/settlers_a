@@ -1,7 +1,7 @@
 // Trade timers live here, not in the engine. The room feeds it every new state; whoever owns real time
 // (setTimeout locally, a Durable Object alarm on Cloudflare) asks which offers are due and submits
 // a SYSTEM trade_expire for each.
-import type { GameConfig, GameState, TradeOffer } from '../games/settlers/engine/types.ts';
+import type { GameConfig, GameState, TradeOffer } from './engine/types.ts';
 
 export const GRACE_MS = 1500; // let the offerer see "everyone declined" before the offer disappears
 

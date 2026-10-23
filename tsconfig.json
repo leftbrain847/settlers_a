@@ -3,7 +3,11 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "strict": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
@@ -12,8 +16,22 @@
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["games", "client-sdk", "host", "tests/unit"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "games",
+    "client-sdk",
+    "host",
+    "tests/unit",
+    "tests/host"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "host/src/worker.ts",
+    "host/src/env.ts",
+    "host/src/do-*.ts"
+  ]
 }

@@ -4,7 +4,7 @@ import { configFromSettings, createGame, addPlayer, startGame } from '../../game
 import { botPlan, createBots, runBotsSync } from '../../games/settlers/ai/driver.ts';
 import type { StrategyName } from '../../games/settlers/ai/driver.ts';
 import type { Settings, TradeOffer } from '../../games/settlers/engine/index.ts';
-import { TradeClock } from '../../client-sdk/clock.ts';
+import { TradeClock } from '../../games/settlers/clock.ts';
 
 function botGame(seed: number, spec: StrategyName[], settings: Settings = { vp_to_win: 10 }) {
   const cfg = configFromSettings(settings);

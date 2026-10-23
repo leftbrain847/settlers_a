@@ -1,6 +1,6 @@
 import { configFromSettings, createGame, addPlayer, startGame, reduce, viewFor, redactEvents, SYSTEM } from '../games/settlers/engine/index.ts';
 import { botPlan, createBots, actionDelayMs } from '../games/settlers/ai/driver.ts';
-import { TradeClock } from './clock.ts';
+import { TradeClock } from '../games/settlers/clock.ts';
 import type { Action, ActionType, GameConfig, GameEvent, GameState, ReduceResult, Settings } from '../games/settlers/engine/types.ts';
 import type { SaveData, Snapshot, StrategyName, Transport, TransportOptions } from './transport.ts';
 

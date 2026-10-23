@@ -4,7 +4,8 @@ export const HOST_CONFIG = {
   maxMsgsPerSec: 25,          // per connection; sustained excess disconnects
   abuseStrikesBeforeClose: 3,
   seatGraceMs: 30_000,
-  emptyRoomTtlMs: 5 * 60_000,
+  lobbyIdleTtlMs: 2 * 3600_000,       // an unstarted room nobody is in
+  gameIdleTtlMs: 7 * 24 * 3600_000,   // a started room nobody has touched
   finishedRoomTtlMs: 7 * 24 * 3600_000,
   inviteTtlMs: 24 * 3600_000,
   joinRequestTtlMs: 5 * 60_000,
