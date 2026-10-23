@@ -16,7 +16,7 @@ console.log(`dist/settlers.html  ${(html.length / 1024).toFixed(0)} KB`);
 
 // Artifact variant: the host supplies doctype/head/body and pads :root for safe areas.
 const artifactCss = css + `
-html,body{height:100%}
+html,body,#app{height:100%}
 .game{height:100%;padding-top:0}
 .dock{padding-bottom:8px}
 .lobby{padding-top:24px}

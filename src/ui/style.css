@@ -1,6 +1,6 @@
 :root { color-scheme: dark; --bg:#141a2e; --panel:#1b2440; --card:#243157; --text:#e8ecf4; --dim:#93a0ba; --border:#33416b; --accent:#00b4d8; --accent2:#f4a261; --good:#06d6a0; --sea:#5bb8d4; --sea2:#3aa8c5; }
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-html, body { height: 100%; background: var(--bg); color: var(--text); font: 15px/1.35 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; overscroll-behavior: none; }
+html, body, #app { height: 100%; background: var(--bg); color: var(--text); font: 15px/1.35 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; overscroll-behavior: none; }
 button, select, input { font: inherit; color: inherit; }
 .dim { color: var(--dim); } .small { font-size: 12px; }
 h1 { font-size: 34px; letter-spacing: .5px; color: var(--accent2); }
