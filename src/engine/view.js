@@ -23,7 +23,7 @@ export function viewFor(cfg, s, pid) {
     players[id] = v;
   }
 
-  return {
+  return structuredClone({
     me: pid,
     game_id: s.game_id, phase: s.phase, config_name: s.config_name,
     turn_number: s.turn_number, current_player: s.phase === 'setup' ? s.player_order[s.setup_player_idx] : s.player_order[s.current_player_idx] ?? null,
@@ -42,7 +42,7 @@ export function viewFor(cfg, s, pid) {
     trade_offers: s.trade_offers,
     log: s.log.slice(-30),
     legal_actions: legalActions(cfg, s, pid),
-  };
+  });
 }
 
 /** Per-recipient event redaction. Same rule as viewFor: allow-list what others may learn. */

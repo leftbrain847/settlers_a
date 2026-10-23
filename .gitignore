@@ -8,3 +8,6 @@ venv/
 dist/
 build/
 .pytest_cache/
+.oracle-traces/
+node_modules/
+__pycache__/
