@@ -1,4 +1,5 @@
 import { sv, clear } from './dom.ts';
+import { icon, resIcon } from './icons.ts';
 import { topology } from '../engine/topology.ts';
 import type { Topology } from '../engine/topology.ts';
 import type { GameConfig, GameView } from '../engine/types.ts';
@@ -14,6 +15,19 @@ interface Pt { x: number; y: number }
 interface Drag { moved: boolean; sx: number; sy: number; target: EventTarget | null; pinch: number | null }
 export interface BoardTap { kind: Kind; id: number }
 
+const reducedMotion = (): boolean => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** The Pastel mountain tile: layered sky, back range, front range and snow caps, clipped to the hex. */
+function mountainScene(c: Pt, clipId: string): SVGElement {
+  const poly = (pts: [number, number][], fill: string): SVGElement => sv('polygon', { points: pts.map(([dx, dy]) => `${c.x + dx * S},${c.y + dy * S}`).join(' '), fill });
+  return sv('g', { 'clip-path': `url(#${clipId})`, class: 'scene' },
+    sv('rect', { x: c.x - S, y: c.y - S * 1.2, width: S * 2, height: S * 2.4, fill: '#C8E0F0' }),
+    poly([[-0.87, 0.7], [-0.5, -0.52], [-0.15, 0.04], [0.2, -0.65], [0.55, -0.25], [0.87, 0.7]], '#BDD2DC'),
+    poly([[-0.87, 1.1], [-0.87, 0.1], [-0.4, -0.4], [0, 0.15], [0.32, -0.5], [0.72, -0.1], [0.87, 0.2], [0.87, 1.1]], '#7A8E98'),
+    poly([[-0.64, -0.36], [-0.5, -0.52], [-0.36, -0.36]], '#E8F0F4'), poly([[0.07, -0.49], [0.2, -0.65], [0.34, -0.49]], '#E8F0F4'),
+    poly([[-0.54, -0.26], [-0.4, -0.4], [-0.26, -0.26]], '#F2F6F8'), poly([[0.18, -0.36], [0.32, -0.5], [0.46, -0.36]], '#F2F6F8'));
+}
+
 /**
  * Renders the board from a view and turns taps/drags into onTap({kind:'i'|'e'|'h', id}).
  * Pan = one finger drag, zoom = pinch or wheel. Hit targets are generous (~36px) and only exist
@@ -27,6 +41,8 @@ export class BoardView {
   key: string | null;
   pointers: Map<number, Pt>;
   drag: Drag | null;
+  private geo: { topo: Topology; pos: Pt[]; hexes: GameView['board']['hexes'] } | null = null;
+  private lastRobber: Pt | null = null;
 
   constructor(svg: SVGSVGElement, { onTap }: { onTap: (t: BoardTap) => void }) {
     this.svg = svg;
@@ -77,11 +93,22 @@ export class BoardView {
     };
     const hexPoints = (hid: number): string => topo.hexIntersections[hid].map((i) => `${pos[i].x},${pos[i].y}`).join(' ');
 
+    this.geo = { topo, pos, hexes: view.board.hexes };
+    const defs = sv('defs');
     const hexLayer = g('hexes');
     for (const hx of view.board.hexes) {
       const c = px(hx.q, hx.r);
       hexLayer.append(sv('polygon', { points: hexPoints(hx.id), class: 'hex', style: { fill: `var(--t-${hx.terrain})` } }));
-      if (!small) hexLayer.append(sv('text', { x: c.x, y: c.y - S * 0.52, class: 'terrain-label' }, cfg.terrain_types[hx.terrain]?.name ?? hx.terrain));
+      const produces = cfg.terrain_types[hx.terrain]?.produces ?? null;
+      if (targets.pictures && hx.terrain === 'mountains') {
+        defs.append(sv('clipPath', { id: `clip-h${hx.id}` }, sv('polygon', { points: hexPoints(hx.id) })));
+        hexLayer.append(mountainScene(c, `clip-h${hx.id}`));
+      } else if (!small) {
+        const ic = icon(resIcon(produces), 15, 'terrain-ico');
+        ic.setAttribute('x', String(c.x - 7.5));
+        ic.setAttribute('y', String(c.y - S * 0.7));
+        hexLayer.append(ic);
+      }
       if (hx.number_token) {
         const red = hx.number_token === 6 || hx.number_token === 8;
         hexLayer.append(
@@ -101,39 +128,53 @@ export class BoardView {
       const d = Math.hypot(m.x, m.y) || 1;
       const lab = { x: m.x + (m.x / d) * S * 0.62, y: m.y + (m.y / d) * S * 0.62 };
       const pt = cfg.port_types[type];
-      const text = pt?.resource ? `2:1 ${cfg.resource_types[pt.resource].name.slice(0, 4)}` : '3:1';
+      const ratio = pt ? `${pt.ratio}:1` : '3:1';
+      const badgeIcon = pt?.resource ? icon(resIcon(pt.resource), 10, 'port-ico') : null;
+      if (badgeIcon) { badgeIcon.setAttribute('x', String(lab.x - 5)); badgeIcon.setAttribute('y', String(lab.y - 10.5)); badgeIcon.style.setProperty('color', `var(--r-${pt!.resource})`); }
       portLayer.append(
         sv('line', { x1: lab.x, y1: lab.y, x2: pos[a].x, y2: pos[a].y, class: 'port-line' }),
         sv('line', { x1: lab.x, y1: lab.y, x2: pos[b].x, y2: pos[b].y, class: 'port-line' }),
         sv('circle', { cx: lab.x, cy: lab.y, r: S * 0.34, class: 'port-badge', style: pt?.resource ? { stroke: `var(--r-${pt.resource})` } : {} }),
-        sv('text', { x: lab.x, y: lab.y + 0.5, class: 'port-text' }, text),
+        ...(badgeIcon ? [badgeIcon] : []),
+        sv('text', { x: lab.x, y: lab.y + (badgeIcon ? 6.2 : 0.5), class: 'port-text' }, ratio),
       );
     }
 
     const roadLayer = g('roads');
     for (const [eid, b] of Object.entries(view.board.buildings.e)) {
       const l = edgeLine(Number(eid));
-      roadLayer.append(sv('line', { ...l, class: 'road-edge' }), sv('line', { ...l, class: 'road', style: { stroke: `var(--p${idx(b.player)})` } }));
+      const born = targets.fresh?.e.get(Number(eid));
+      const fresh = born !== undefined ? ' pop' : '';
+      const resume: Record<string, string> = born !== undefined ? { animationDelay: `${-(Date.now() - born)}ms` } : {};
+      roadLayer.append(sv('line', { ...l, class: 'road-edge' + fresh, style: resume }), sv('line', { ...l, class: 'road' + fresh, style: { stroke: `var(--p${idx(b.player)})`, ...resume } }));
     }
 
     const buildLayer = g('buildings');
-    const drawPiece = (player: string, p: Pt, type: string | undefined, ghost: boolean): SVGElement => {
+    // `born` = when the piece appeared: a redraw mid-animation resumes it at the right moment instead of restarting or dropping it.
+    const drawPiece = (player: string, p: Pt, type: string | undefined, ghost: boolean, born?: number): SVGElement => {
       const city = type === 'city';
       const s = city ? 1.35 : 1;
       const d = city
         ? `M${-9 * s * 0.75},${7} L${-9 * s * 0.75},${-3} L${-2},${-3} L${-2},${-8} L${3},${-12} L${8},${-8} L${8},${7} Z`
         : 'M-8,6 L-8,-2 L0,-9 L8,-2 L8,6 Z';
       return sv('g', { transform: `translate(${p.x},${p.y})`, class: 'piece' + (ghost ? ' ghost' : '') },
-        sv('path', { d, class: 'piece-shape', style: { fill: `var(--p${idx(player)})` } }));
+        sv('path', { d, class: 'piece-shape' + (born !== undefined ? ' pop' : ''), style: { fill: `var(--p${idx(player)})`, ...(born !== undefined ? { animationDelay: `${-(Date.now() - born)}ms` } : {}) } }));
     };
-    for (const [iid, b] of Object.entries(view.board.buildings.i)) buildLayer.append(drawPiece(b.player, pos[Number(iid)], b.type, false));
+    for (const [iid, b] of Object.entries(view.board.buildings.i)) buildLayer.append(drawPiece(b.player, pos[Number(iid)], b.type, false, targets.fresh?.i.get(Number(iid))));
 
     const robberLayer = g('robber');
     if (view.board.robber_hex !== null) {
       const rh = view.board.hexes[view.board.robber_hex];
       const c = px(rh.q, rh.r);
-      robberLayer.append(sv('g', { transform: `translate(${c.x + S * 0.38},${c.y + S * 0.22})` },
-        sv('circle', { cx: 0, cy: -9, r: 4.5, class: 'robber' }), sv('path', { d: 'M-6,8 L-3.5,-4 L3.5,-4 L6,8 Z', class: 'robber' })));
+      const to = { x: c.x + S * 0.38, y: c.y + S * 0.22 };
+      const pawn = sv('g', { transform: `translate(${to.x},${to.y})` },
+        sv('circle', { cx: 0, cy: -9, r: 4.5, class: 'robber' }), sv('path', { d: 'M-6,8 L-3.5,-4 L3.5,-4 L6,8 Z', class: 'robber' }));
+      robberLayer.append(pawn);
+      const from = this.lastRobber;
+      if (from && (from.x !== to.x || from.y !== to.y) && typeof (pawn as unknown as { animate?: unknown }).animate === 'function' && !reducedMotion()) {
+        pawn.animate([{ transform: `translate(${from.x}px, ${from.y}px)` }, { transform: `translate(${from.x}px, ${from.y - 14}px)`, offset: 0.25 }, { transform: `translate(${to.x}px, ${to.y - 14}px)`, offset: 0.75 }, { transform: `translate(${to.x}px, ${to.y}px)` }], { duration: 650, easing: 'ease-in-out' });
+      }
+      this.lastRobber = to;
     }
 
     const targetLayer = g('targets');
@@ -159,7 +200,24 @@ export class BoardView {
       }
     }
 
-    this.svg.append(hexLayer, portLayer, roadLayer, buildLayer, robberLayer, targetLayer);
+    this.svg.append(defs, hexLayer, portLayer, roadLayer, buildLayer, robberLayer, targetLayer);
+  }
+
+  /** Screen position of a hex centre / intersection / edge midpoint, for effects that fly between the board and the HUD. */
+  clientPoint(kind: Kind, id: number): Pt | null {
+    const geo = this.geo;
+    const svg = this.svg as unknown as { getScreenCTM?: () => DOMMatrix | null; createSVGPoint?: () => DOMPoint };
+    if (!geo || typeof svg.getScreenCTM !== 'function' || typeof svg.createSVGPoint !== 'function') return null;
+    let w: Pt | undefined;
+    if (kind === 'h') { const hx = geo.hexes[id]; w = hx ? px(hx.q, hx.r) : undefined; }
+    else if (kind === 'i') w = geo.pos[id];
+    else { const e = geo.topo.edges[id]; w = e ? { x: (geo.pos[e.a].x + geo.pos[e.b].x) / 2, y: (geo.pos[e.a].y + geo.pos[e.b].y) / 2 } : undefined; }
+    const ctm = svg.getScreenCTM();
+    if (!w || !ctm) return null;
+    const p = svg.createSVGPoint();
+    p.x = w.x; p.y = w.y;
+    const out = p.matrixTransform(ctm);
+    return { x: out.x, y: out.y };
   }
 
   // ---- gestures ----

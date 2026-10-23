@@ -8,6 +8,9 @@ import { newSeed } from '../engine/index.ts';
 import { defaults, toSettings } from './settings.ts';
 import { settingsFields } from './settings-form.ts';
 import { OnlineController, defaultEnv } from './online.ts';
+import { icon, resIcon } from './icons.ts';
+import { Fx } from './fx.ts';
+import type { FxAnchors, Pt } from './fx.ts';
 import type { OnlineEnv } from './online.ts';
 import type { SettingValue } from './settings.ts';
 import * as sheets from './sheets.ts';
@@ -26,6 +29,7 @@ interface Prefs {
 type Sleep = (ms: number) => Promise<void>;
 type MakeTransport = (o: TransportOptions) => Transport;
 interface Dom {
+  fx: HTMLElement; bank: HTMLElement; live: HTMLElement;
   status: HTMLElement; dice: HTMLElement; watch: HTMLElement; speed: HTMLElement; menu: HTMLElement;
   players: HTMLElement; banner: HTMLElement; svg: SVGSVGElement; hand: HTMLElement; actions: HTMLElement;
   toasts: HTMLElement; sheetHost: HTMLElement; overlay: HTMLElement;
@@ -35,6 +39,12 @@ type SheetSpec =
   | { type: 'incoming'; title: string; modal: true; offer: TradeOffer }
   | { type: 'waiting'; title: string; modal: true; offer: TradeOffer; counters: TradeOffer[] }
   | { type: SheetName; title: string; modal?: false };
+
+/** A die face drawn as pips, so the number reads at a glance. */
+function dieFace(n: number): SVGElement {
+  const spots: Record<number, [number, number][]> = { 1: [[12, 12]], 2: [[7, 7], [17, 17]], 3: [[7, 7], [12, 12], [17, 17]], 4: [[7, 7], [17, 7], [7, 17], [17, 17]], 5: [[7, 7], [17, 7], [12, 12], [7, 17], [17, 17]], 6: [[7, 6.5], [17, 6.5], [7, 12], [17, 12], [7, 17.5], [17, 17.5]] };
+  return sv('svg', { viewBox: '0 0 24 24', width: 24, height: 24, class: 'face' }, ...(spots[n] ?? []).map(([x, y]) => sv('circle', { cx: x, cy: y, r: 2.2 })));
+}
 
 function safeStorage(): KeyValueStore | null {
   try { const s = window.localStorage; s.setItem('__t', '1'); s.removeItem('__t'); return s; } catch { return null; }
@@ -70,6 +80,9 @@ export class App {
   board!: BoardView;
   mode: Mode | null = null;
   declining = false;
+  fx: Fx | null = null;
+  /** things that just appeared: animate them once, not on every redraw */
+  fresh = { i: new Map<number, number>(), e: new Map<number, number>(), chips: new Map<string, number>(), badges: new Map<string, number>(), dice: 0 };
   online: OnlineController | null;
 
   constructor(root: HTMLElement, storage: KeyValueStore | null, makeTransport: MakeTransport, sleep: Sleep | undefined, onlineEnv: OnlineEnv | null = null) {
@@ -148,15 +161,17 @@ export class App {
       status: h('div.status'), dice: h('div.dice'), watch: h('button.pill#watch', { onclick: () => this.tr.setAutopilot(!this.snap?.autopilot) }), speed: h('button.pill#speed', { 'aria-label': 'Playback speed', onclick: () => this.cycleSpeed() }), menu: h('button.icon#menu', { 'aria-label': 'Menu', onclick: () => this.openSheet('menu') }, '☰'),
       players: h('div.players'), banner: h('div.banner'), svg, hand: h('div.hand'), actions: h('div.actions'),
       toasts: h('div.toasts'), sheetHost: h('div.sheet-host'), overlay: h('div.overlay'),
+      fx: h('div.fx'), bank: h('div.bank', { 'aria-label': 'Bank and development card deck' }), live: h('div.sr', { 'aria-live': 'polite' }),
     };
+    this.fx = new Fx(this.dom.fx);
     this.board = new BoardView(svg, { onTap: (t) => this.onBoardTap(t) });
     mount(this.root,
       h('div.game',
         h('div.top', this.dom.status, this.dom.dice, this.dom.watch, this.dom.speed, this.dom.menu),
         this.dom.players,
-        h('div.boardwrap', svg, this.dom.banner, this.dom.toasts),
+        h('div.boardwrap', svg, this.dom.bank, this.dom.banner, this.dom.toasts),
         h('div.dock', this.dom.hand, this.dom.actions),
-        this.dom.sheetHost, this.dom.overlay));
+        this.dom.sheetHost, this.dom.overlay, this.dom.fx, this.dom.live));
   }
 
   send = <T extends ActionType>(type: T, params?: ActionParams[T]): void => { this.tr.send(type, params); };
@@ -182,10 +197,9 @@ export class App {
   onSnapshot(snap: Snapshot): void {
     this.snap = snap;
     const v = snap.view;
-    for (const ev of snap.events) {
-      const text = describeEvent(ev, v, snap.cfg);
-      if (text && ev.type !== 'turn_started') this.toast(text);
-    }
+    this.noteFresh(snap.events);
+    const spoken = snap.events.map((ev) => describeEvent(ev, v, snap.cfg)).filter((x): x is string => !!x);
+    if (spoken.length) this.dom.live.textContent = spoken.join('. ');
     if (snap.error) this.toast(snap.error, true);
     if (snap.events.length) this.persist();
     // Leaving a decision resets any half-made choice.
@@ -193,6 +207,40 @@ export class App {
     if (this.ui.buildMode && !v.legal_actions.filter(isLegal('build')).some((a) => a.building_type === this.ui.buildMode)) this.ui.buildMode = null;
     this.autoDecline(v);
     this.render();
+    this.fx?.play(snap.events, v, snap.cfg, this.anchors(), snap.speed);
+  }
+
+  /** Remember what is new so the next redraw can animate it once. */
+  noteFresh(events: Snapshot['events']): void {
+    const f = this.fresh;
+    const now = Date.now();
+    for (const ev of events) {
+      if (ev.type === 'building_placed') (ev.location_type === 'edge' ? f.e : f.i).set(Number(ev.location), now);
+      else if (ev.type === 'free_road_built') f.e.set(Number(ev.location), now);
+      else if (ev.type === 'turn_started') f.chips.set(String(ev.player), now);
+      else if (ev.type === 'achievement_gained') f.badges.set(`${String(ev.player)}:${String(ev.achievement)}`, now);
+      else if (ev.type === 'dice_rolled') f.dice = now;
+    }
+  }
+
+  anchors(): FxAnchors {
+    const centre = (el: Element | null): Pt | null => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    };
+    const me = this.snap?.view.me;
+    return {
+      seat: (id, res) => centre(id === me && res ? this.dom.hand.querySelector(`[data-res="${res}"]`) : id === me ? this.dom.hand : this.dom.players.querySelector(`[data-seat="${id}"]`)),
+      bank: () => centre(this.dom.bank),
+      center: () => centre(this.dom.svg),
+      board: (kind, id) => this.board.clientPoint(kind, id),
+      bump: (id) => {
+        const el = id === me ? this.dom.hand : this.dom.players.querySelector(`[data-seat="${id}"]`);
+        if (!el) return;
+        el.classList.remove('bump'); void (el as HTMLElement).offsetWidth; el.classList.add('bump');
+      },
+    };
   }
 
   persist(): void {
@@ -252,27 +300,23 @@ export class App {
     return null;
   }
 
-  bannerText(v: GameView, _cfg: GameConfig, thinking: string | null | undefined): string {
-    const name = (id: string | null): string | null => (id === null ? undefined : v.players[id]?.name) ?? id;
-    if (v.phase === 'finished') return `${name(v.winner)} wins!`;
-    const discarding = Object.keys(v.pending_discards);
-    if (v.pending_discards[v.me]) return `Discard ${v.pending_discards[v.me]} cards`;
-    if (discarding.length) return `Waiting for ${discarding.map((id) => name(id)).join(', ')} to discard`;
-    if (this.snap?.autopilot) return thinking || v.current_player !== v.me ? `Watching \u2014 ${name(v.current_player)} is playing\u2026` : 'Watching';
-    const me = v.current_player === v.me;
-    if (v.phase === 'setup') {
-      const st = v.setup;
-      if (!me) return `${name(v.current_player)} is placing…`;
-      return st.settlements_placed < 1 ? 'Place a settlement' : 'Place a road next to it';
-    }
-    if (!me) return thinking ? `${name(v.current_player)} is playing…` : `${name(v.current_player)}'s turn`;
-    if (v.pending_robber_move) return 'Move the robber';
-    if (v.pending_robber_steal) return 'Choose who to steal from';
-    if (v.pending_action?.type === 'build_free_roads') return `Build ${v.pending_action.remaining} free road${v.pending_action.remaining > 1 ? 's' : ''}`;
-    if (v.pending_action) return 'Finish your card';
-    if (!v.dice_rolled) return 'Your turn — roll the dice';
-    if (this.ui.buildMode) return 'Tap a highlighted spot';
-    return 'Your turn';
+  /** What the local player should do next, as icons (plus a plain label for screen readers). Null = nothing to prompt. */
+  promptFor(v: GameView): { icons: string[]; count?: number; label: string } | null {
+    if (v.phase === 'finished' || this.snap?.autopilot) return null;
+    const n = v.pending_discards[v.me];
+    if (n) return { icons: ['card'], count: n, label: `Discard ${n} cards` };
+    if (v.current_player !== v.me) return null;
+    const pieceIcon: Record<string, string> = { settlement: 'house', city: 'city', road: 'road' };
+    if (v.phase === 'setup') return { icons: [v.setup.settlements_placed < 1 ? 'house' : 'road'], label: v.setup.settlements_placed < 1 ? 'Place a settlement' : 'Place a road next to it' };
+    if (v.pending_robber_move) return { icons: ['robber'], label: 'Move the robber' };
+    if (v.pending_robber_steal) return { icons: ['robber', 'card'], label: 'Choose who to steal from' };
+    const pa = v.pending_action;
+    if (pa?.type === 'build_free_roads') return { icons: ['road'], count: pa.remaining, label: `Build ${pa.remaining} free roads` };
+    if (pa?.type === 'choose_resources') return { icons: ['plenty'], label: 'Choose resources' };
+    if (pa?.type === 'choose_monopoly_resource') return { icons: ['crown'], label: 'Choose a resource' };
+    if (!v.dice_rolled) return { icons: ['dice'], label: 'Your turn: roll the dice' };
+    if (this.ui.buildMode) return { icons: [pieceIcon[this.ui.buildMode] ?? 'house'], label: 'Tap a highlighted spot' };
+    return null;
   }
 
   // ------------------------------------------------------------------ render
@@ -281,21 +325,27 @@ export class App {
     const { view: v, cfg } = this.snap;
     this.mode = this.targetsFor(v, cfg);
     const ghost = this.mode && this.ui.pending ? { kind: this.mode.kind, id: this.ui.pending.id, type: this.mode.piece, player: v.me } : null;
-    const targets: BoardTargets = {};
+    this.pruneFresh();
+    const targets: BoardTargets = { fresh: { i: this.fresh.i, e: this.fresh.e }, pictures: this.prefs.theme === 'pastel' };
     if (this.mode) { targets[this.mode.kind] = this.mode.ids; targets.ghost = ghost; }
     this.board.update(v, cfg, targets);
 
     const me = v.players[v.me];
     this.dom.status.textContent = v.phase === 'setup' ? 'Setup' : v.phase === 'finished' ? 'Game over' : `Turn ${v.turn_number}`;
-    mount(this.dom.dice, ...(v.last_roll ? v.last_roll.map((n) => h('span.die', n)) : [h('span.die.off', '•'), h('span.die.off', '•')]), v.last_roll ? h('span.dice-total', v.last_roll.reduce((a, b) => a + b, 0)) : null);
+    const tumble = this.fresh.dice ? '.roll' : '';
+    const resumeDice: Record<string, string> = this.fresh.dice ? { animationDelay: `${-(Date.now() - this.fresh.dice)}ms` } : {};
+    mount(this.dom.dice, ...(v.last_roll ? v.last_roll.map((n) => h('span.die' + tumble, { 'aria-label': String(n), style: resumeDice }, dieFace(n))) : [h('span.die.off', icon('dice', 20)), h('span.die.off', icon('dice', 20))]), v.last_roll ? h('span.dice-total', v.last_roll.reduce((a, b) => a + b, 0)) : null);
 
     mount(this.dom.players, ...v.player_order.map((id, i) => {
       const p = v.players[id];
-      const badges = p.achievements.map((a) => h('span.badge', { title: cfg.achievements[a]?.name }, a === 'longest_road' ? 'LR' : a === 'largest_army' ? 'LA' : '★'));
+      const badges = p.achievements.map((a) => h('span.badge' + (this.fresh.badges.has(`${id}:${a}`) ? '.pop' : ''), { title: cfg.achievements[a]?.name, style: this.fresh.badges.has(`${id}:${a}`) ? { animationDelay: `${-(Date.now() - this.fresh.badges.get(`${id}:${a}`)!)}ms` } : {} }, icon(a === 'longest_road' ? 'road' : a === 'largest_army' ? 'sword' : 'star', 12)));
       const knights = p.played_dev_cards.filter((c) => cfg.dev_card_types[c]?.persistent_tag === 'knight').length;
-      return h('div.pchip' + (id === v.current_player && v.phase !== 'finished' ? '.active' : '') + (id === v.me ? '.me' : ''), { style: { '--pc': `var(--p${i})` } },
-        h('span.dot'), h('span.pname', id === v.me ? `${p.name} (you)` : p.name), h('span.pvp', `${p.vp} VP`),
-        h('span.pmeta', `${p.resource_count} cards · ${p.dev_card_count} dev${knights ? ` · ${knights} knight${knights > 1 ? 's' : ''}` : ''}`), ...badges);
+      const owes = v.pending_discards[id];
+      const thinking = this.snap?.thinking === id && id !== v.me;
+      return h('div.pchip' + (id === v.current_player && v.phase !== 'finished' ? '.active' : '') + (id === v.me ? '.me' : '') + (this.fresh.chips.has(id) ? '.turn' : ''), { style: { '--pc': `var(--p${i})`, ...(this.fresh.chips.has(id) ? { animationDelay: `${-(Date.now() - this.fresh.chips.get(id)!)}ms` } : {}) }, dataset: { seat: id }, 'aria-label': `${p.name}${id === v.me ? ' (you)' : ''}, ${p.vp} points` },
+        h('span.dot'), h('span.pname', p.name), h('span.pvp', icon('star', 13), String(p.vp)),
+        h('span.pmeta', icon('card', 13), String(p.resource_count), icon('deck', 13), String(p.dev_card_count), knights ? [icon('knight', 13), String(knights)] : null, owes ? h('span.owes', icon('card', 12), `-${owes}`) : null),
+        ...badges, thinking ? h('span.think', h('i'), h('i'), h('i')) : null);
     }));
 
     const fmtSpeed = (x: number): string => (x === Infinity || x >= 1e9 ? 'Max' : `${x}x`);
@@ -303,16 +353,30 @@ export class App {
     this.dom.watch.classList.toggle('on', !!this.snap.autopilot);
     this.dom.speed.textContent = fmtSpeed(this.snap.speed);
     this.dom.speed.hidden = !!this.online?.inRoom && !this.online.isHost;
-    this.dom.banner.textContent = this.bannerText(v, cfg, this.snap.thinking);
-    this.dom.banner.classList.toggle('urgent', v.current_player === v.me && v.phase !== 'finished');
+    const prompt = this.promptFor(v);
+    mount(this.dom.banner, ...(prompt ? [...prompt.icons.map((n) => icon(n, 22)), prompt.count ? h('span.cnt', `×${prompt.count}`) : null] : []));
+    this.dom.banner.setAttribute('aria-label', prompt?.label ?? '');
+    this.dom.banner.hidden = !prompt;
+    this.dom.banner.classList.toggle('urgent', !!prompt);
+    const deck = v.dev_cards_remaining;
+    mount(this.dom.bank, icon('bank', 22), icon('deck', 18), h('span.cnt', String(deck)));
     this.renderToasts();
 
-    mount(this.dom.hand, ...Object.keys(cfg.resource_types).map((r) => h('div.hcard', { style: { '--c': `var(--r-${r})` } }, h('span.hn', handOf(me)[r] ?? 0), h('span.hl', cfg.resource_types[r].name))),
-      h('div.hcard.dev', h('span.hn', me.dev_card_count), h('span.hl', 'Dev')));
+    mount(this.dom.hand, ...Object.keys(cfg.resource_types).map((r) => h('div.hcard', { style: { '--c': `var(--r-${r})` }, dataset: { res: r }, 'aria-label': `${handOf(me)[r] ?? 0} ${cfg.resource_types[r].name}` }, icon(resIcon(r), 22), h('span.hn', handOf(me)[r] ?? 0))),
+      h('div.hcard.dev', { dataset: { res: 'dev' }, 'aria-label': `${me.dev_card_count} development cards` }, icon('deck', 22), h('span.hn', me.dev_card_count)));
+    this.dom.hand.parentElement?.classList.toggle('mine', v.current_player === v.me && v.phase !== 'finished' && !this.snap.autopilot);
 
     this.renderActions(v, cfg);
     this.renderSheet(v, cfg);
     this.renderOverlay(v, cfg);
+  }
+
+  /** Markers live for about a second so any redraw in that window keeps the animation going. */
+  pruneFresh(): void {
+    const cutoff = Date.now() - 1000;
+    const f = this.fresh;
+    for (const m of [f.i, f.e, f.chips, f.badges] as Map<unknown, number>[]) for (const [k, t] of m) if (t < cutoff) m.delete(k);
+    if (f.dice < cutoff) f.dice = 0;
   }
 
   renderToasts(): void {
@@ -323,7 +387,7 @@ export class App {
     const legal = v.legal_actions;
     const has = (t: LegalAction['type']): boolean => legal.some((a) => a.type === t);
     const btns: HTMLElement[] = [];
-    const b = (label: string, onclick: () => void, o: { primary?: boolean; cls?: string; disabled?: boolean } = {}): void => { btns.push(h('button.btn' + (o.primary ? '.primary' : '') + (o.cls ? '.' + o.cls : ''), { onclick, disabled: o.disabled }, label)); };
+    const b = (label: string, onclick: () => void, o: { primary?: boolean; cls?: string; disabled?: boolean; icon?: string } = {}): void => { btns.push(h('button.btn' + (o.primary ? '.primary' : '') + (o.cls ? '.' + o.cls : ''), { onclick, disabled: o.disabled }, o.icon ? icon(o.icon, 18) : null, label)); };
 
     if (v.phase === 'finished') { mount(this.dom.actions); return; }
     if (this.snap?.autopilot) { b('Take over my seat', () => this.tr.setAutopilot(false), { primary: true }); mount(this.dom.actions, ...btns); return; }
@@ -338,11 +402,11 @@ export class App {
       if (legal.filter(isLegal('dev_card_action')).some((a) => a.skip)) b('Skip', () => this.send('dev_card_action', { skip: true, location: -1 }), { primary: true });
     } else if (v.phase === 'playing' && v.current_player === v.me && !v.pending_robber_move && !v.pending_robber_steal && !v.pending_action && !Object.keys(v.pending_discards).length) {
       if (!v.dice_rolled) {
-        b('Roll dice', () => this.send('roll_dice'), { primary: true, cls: 'big' });
+        b('Roll dice', () => this.send('roll_dice'), { primary: true, cls: 'big', icon: 'dice' });
         if (has('play_dev_card')) b('Dev cards', () => this.openSheet('dev'));
       } else {
-        b('Build', () => this.openSheet('build'), { disabled: !(has('build') || has('buy_dev_card')) });
-        b('Trade', () => this.openSheet('trade'));
+        b('Build', () => this.openSheet('build'), { icon: 'house', disabled: !(has('build') || has('buy_dev_card')) });
+        b('Trade', () => this.openSheet('trade'), { icon: 'swap' });
         b(`Dev (${v.players[v.me].dev_card_count})`, () => this.openSheet('dev'), { disabled: !v.players[v.me].dev_card_count });
         b('End turn', () => { this.ui.sheet = null; this.send('end_turn'); }, { primary: true });
       }

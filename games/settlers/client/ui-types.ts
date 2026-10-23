@@ -29,6 +29,10 @@ export interface UiState {
 /** What the board should highlight, and the piece to preview for a tapped spot. */
 export interface BoardTargets {
   i?: Set<number>; e?: Set<number>; h?: Set<number>;
+  /** pieces that just appeared (they pop in once instead of replaying on every redraw) */
+  fresh?: { i: Map<number, number>; e: Map<number, number> };
+  /** draw picture tiles (the Pastel look) */
+  pictures?: boolean;
   ghost?: { kind: Kind; id: number; type?: string; player: string } | null;
 }
 export interface Mode { kind: Kind; ids: Set<number>; piece?: string; apply(id: number): Move; label: string }

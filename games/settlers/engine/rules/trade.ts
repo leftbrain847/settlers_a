@@ -142,7 +142,7 @@ function finalize(ctx: Ctx, offer: TradeOffer, accepterId: string): void {
   }
   for (const cid of offer.counter_ids) delete s.trade_offers[cid];
   delete s.trade_offers[offer.id];
-  events.push({ type: 'trade_completed', from: offer.from_player, to: accepterId, trade_id: offer.id });
+  events.push({ type: 'trade_completed', from: offer.from_player, to: accepterId, trade_id: offer.id, offering: { ...offer.offering }, requesting: { ...offer.requesting } });
   addLog(s, 'trade_accept', { player: accepterId, from_player: offer.from_player, trade_id: offer.id });
 }
 

@@ -1,4 +1,5 @@
 import { h } from './dom.ts';
+import { DEV_ICON, icon, resIcon } from './icons.ts';
 import { bankRatio } from '../engine/state.ts';
 import { describeLog } from './format.ts';
 import { handOf, isLegal } from './ui-types.ts';
@@ -10,7 +11,7 @@ const sum = (m: ResMap): number => Object.values(m).reduce((a, b) => a + b, 0);
 export const resName = (cfg: GameConfig, r: string): string => cfg.resource_types[r]?.name ?? r;
 
 export function chip(cfg: GameConfig, r: string, n?: number, cls = ''): HTMLElement {
-  return h('span.chip.res' + (cls ? '.' + cls : ''), { style: { '--c': `var(--r-${r})` } }, n === undefined ? resName(cfg, r) : `${n} ${resName(cfg, r)}`);
+  return h('span.chip.res' + (cls ? '.' + cls : ''), { style: { '--c': `var(--r-${r})` }, 'aria-label': n === undefined ? resName(cfg, r) : `${n} ${resName(cfg, r)}`, title: resName(cfg, r) }, icon(resIcon(r), 16), n === undefined ? null : h('span.cn', n));
 }
 
 export const costChips = (cfg: GameConfig, cost: ResMap): HTMLElement =>
@@ -23,7 +24,7 @@ const rerender = (): void => { current?.rerender(); };
 
 function stepper(cfg: GameConfig, r: string, value: number, max: number, onChange: (v: number) => void): HTMLElement {
   return h('div.rcell' + (value ? '.has' : ''), { style: { '--c': `var(--r-${r})` } },
-    h('span.rname', resName(cfg, r)),
+    h('span.rname', { title: resName(cfg, r), 'aria-label': resName(cfg, r) }, icon(resIcon(r), 22)),
     h('span.rval', value),
     h('div.pm',
       h('button.step', { disabled: value <= 0, onclick: () => onChange(value - 1), 'aria-label': `less ${resName(cfg, r)}` }, '−'),
@@ -35,7 +36,7 @@ function steppers(cfg: GameConfig, draft: ResMap, kinds: string[], caps: ResMap)
 }
 
 interface BtnOpts { primary?: boolean; disabled?: boolean; cls?: string }
-const btn = (label: string, onclick: () => void, { primary, disabled, cls }: BtnOpts = {}): HTMLElement =>
+const btn = (label: string | Node, onclick: () => void, { primary, disabled, cls }: BtnOpts = {}): HTMLElement =>
   h('button.btn' + (primary ? '.primary' : '') + (cls ? '.' + cls : ''), { onclick, disabled }, label);
 
 export function timerBar(snap: Snapshot, id: string): HTMLElement | null {
@@ -76,7 +77,7 @@ export function yopSheet({ view, cfg, ui, send }: SheetCtx): HTMLElement {
 
 export function monopolySheet({ cfg, send }: SheetCtx): HTMLElement {
   return h('div', h('p.dim', 'Monopoly: take every card of one resource from all other players.'),
-    h('div.col', Object.keys(cfg.resource_types).map((r) => h('button.btn.res-btn', { style: { '--c': `var(--r-${r})` }, onclick: () => send('dev_card_action', { resource: r }) }, resName(cfg, r)))));
+    h('div.col', Object.keys(cfg.resource_types).map((r) => h('button.btn.res-btn', { style: { '--c': `var(--r-${r})` }, onclick: () => send('dev_card_action', { resource: r }), 'aria-label': resName(cfg, r) }, icon(resIcon(r), 26)))));
 }
 
 // ---------------- build ----------------
@@ -118,7 +119,7 @@ export function devSheet({ view, cfg, send, ui }: SheetCtx): HTMLElement {
   const rows = Object.entries(counts).map(([id, n]) => {
     const dc = cfg.dev_card_types[id];
     const playable = view.legal_actions.filter(isLegal('play_dev_card')).some((a) => a.card_type === id);
-    return h('div.row' + (playable || dc.is_victory_point ? '' : '.off'), h('div.row-main', h('strong', `${dc.name}${n > 1 ? ` ×${n}` : ''}`), h('span.dim.small', dc.is_victory_point ? '1 secret victory point' : DEV_TEXT[dc.effects[0]?.type ?? ''] ?? '')),
+    return h('div.row' + (playable || dc.is_victory_point ? '' : '.off'), h('div.row-main', h('strong.devname', icon(DEV_ICON[id] ?? 'card', 18), `${dc.name}${n > 1 ? ` ×${n}` : ''}`), h('span.dim.small', dc.is_victory_point ? '1 secret victory point' : DEV_TEXT[dc.effects[0]?.type ?? ''] ?? '')),
       dc.is_victory_point ? h('span.dim.small', 'Automatic') : btn('Play', () => { send('play_dev_card', { card_type: id }); ui.sheet = null; }, { primary: true, disabled: !playable }));
   });
   const played = me.played_dev_cards.length ? h('p.dim.small', `Played: ${me.played_dev_cards.map((c) => cfg.dev_card_types[c]?.name).join(', ')}`) : null;
@@ -153,13 +154,13 @@ function bankPane({ view, cfg, ui, send }: SheetCtx): HTMLElement {
   const wants = b.give ? legal.filter((a) => a.give_resource === b.give).map((a) => a.want_resource) : [];
   if (b.want && !wants.includes(b.want)) b.want = null;
   const pick = (key: 'give' | 'want', set: Set<string>, r: string): HTMLElement =>
-    h('button.btn.res-btn' + (b[key] === r ? '.on' : ''), { style: { '--c': `var(--r-${r})` }, disabled: !set.has(r), onclick: () => { b[key] = r; rerender(); } }, resName(cfg, r));
+    h('button.btn.res-btn' + (b[key] === r ? '.on' : ''), { style: { '--c': `var(--r-${r})` }, disabled: !set.has(r), 'aria-label': resName(cfg, r), onclick: () => { b[key] = r; rerender(); } }, icon(resIcon(r), 24));
   const ratio = b.give ? bankRatio(cfg, { ports: me.ports }, b.give) : null;
   const give = b.give, want = b.want;
   return h('div', h('h4', 'Give'), h('div.pickrow', kinds.map((r) => pick('give', gives, r))),
     h('h4', 'Get'), h('div.pickrow', kinds.map((r) => pick('want', new Set(wants), r))),
     h('p.dim.small', gives.size ? 'Ports improve your ratio.' : 'You do not have enough of any resource to trade with the bank.'),
-    btn(give && want ? `Trade ${ratio} ${resName(cfg, give)} for 1 ${resName(cfg, want)}` : 'Choose resources', () => {
+    btn(give && want ? h('span.tradeline', String(ratio), icon(resIcon(give), 20), icon('swap', 18), '1', icon(resIcon(want), 20)) : 'Choose resources', () => {
       if (!give || !want) return;
       send('trade_bank', { give_resource: give, want_resource: want });
       ui.draft.bank = { give: null, want: null };

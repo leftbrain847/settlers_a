@@ -67,10 +67,10 @@ export function applyBuild(ctx: Ctx, a: Action<'build'>): void {
     s.board.buildings.i[loc] = { type: bt.id, player: pid };
     const port = s.board.ports[loc];
     if (port && !p.ports.includes(port)) p.ports.push(port);
-    events.push({ type: 'building_placed', player: pid, building: bt.id, location: loc, location_type: 'intersection', upgraded_from: oldType });
+    events.push({ type: 'building_placed', player: pid, building: bt.id, location: loc, location_type: 'intersection', upgraded_from: oldType, paid: !isSetup });
   } else {
     s.board.buildings.e[loc] = { type: bt.id, player: pid };
-    events.push({ type: 'building_placed', player: pid, building: bt.id, location: loc, location_type: 'edge' });
+    events.push({ type: 'building_placed', player: pid, building: bt.id, location: loc, location_type: 'edge', paid: !isSetup });
   }
   p.buildings_placed[bt.id] = (p.buildings_placed[bt.id] ?? 0) + 1;
 

@@ -26,7 +26,8 @@ const fire = (el: Element, type: string): void => { el.dispatchEvent(new dom.win
 const tap = (el: Element): void => { fire(el, 'pointerdown'); fire(el, 'pointerup'); };
 const pumping = (app: App): boolean => (app.t as unknown as { pumping: boolean }).pumping;
 const settle = async (app: App): Promise<void> => { for (let i = 0; i < 400; i++) { await new Promise((r) => setTimeout(r, 0)); if (!pumping(app)) { await new Promise((r) => setTimeout(r, 0)); if (!pumping(app)) return; } } throw new Error('transport never settled'); };
-const banner = () => maybe('.banner')?.textContent ?? '';
+const until = async (cond: () => boolean, what: string, ms = 4000): Promise<void> => { const t0 = Date.now(); while (!cond()) { if (Date.now() - t0 > ms) throw new Error(`timed out: ${what}`); await new Promise((r) => setTimeout(r, 5)); } };
+const banner = () => maybe('.banner')?.getAttribute('aria-label') ?? '';
 
 function start(opts: { rings?: number; vp?: number; discard?: number; bots?: number } = {}) {
   document.getElementById('app')!.innerHTML = '';
@@ -192,4 +193,24 @@ test('Watch hands the seat to a bot, hides the controls, and Take over returns i
   assert.equal($$('.sheet').length, 0);
   $('#watch').click();
   assert.equal($('#watch').textContent, 'Watch');
+});
+
+test('what just happened is shown once: a new piece pops in, then redraws leave it alone; prompts are icons', async () => {
+  const { app } = start();
+  await settle(app);
+  assert.equal(banner(), 'Place a settlement');
+  assert.equal($('.banner').querySelectorAll('svg').length, 1, 'the prompt is a house icon, not a sentence');
+  assert.equal($('.banner').textContent, '');
+  assert.equal($$('.hcard .ico').length, 6, 'the hand shows resource icons');
+  tap($$('.target-hit')[3]!);
+  button('Confirm')!.click(); // the click redraws synchronously, before any bot move
+  assert.ok($$('.piece-shape.pop').length >= 1, 'the new settlement pops in');
+  app.render();
+  assert.ok($$('.piece-shape.pop').length >= 1, 'a redraw during the animation keeps it going');
+  assert.match($('.piece-shape.pop').style.animationDelay, /^-\d+ms$/, 'and resumes at the right moment');
+  await new Promise((r) => setTimeout(r, 1100));
+  app.render();
+  assert.equal($$('.piece-shape.pop').length, 0, 'once it is over, redraws leave the piece alone');
+  assert.equal($$('.toast').length, 0, 'nothing is written to the player for ordinary events');
+  assert.ok($$('.pchip[data-seat]').length >= 3);
 });

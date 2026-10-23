@@ -1,5 +1,5 @@
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const SVG_TAGS = new Set(['svg', 'g', 'path', 'circle', 'line', 'polygon', 'rect', 'text', 'defs']);
+const SVG_TAGS = new Set(['svg', 'g', 'path', 'circle', 'ellipse', 'line', 'polygon', 'rect', 'text', 'defs', 'clipPath']);
 
 export type Child = Node | string | number | boolean | null | undefined | Child[];
 export interface Props {
