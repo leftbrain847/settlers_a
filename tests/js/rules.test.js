@@ -169,3 +169,19 @@ test('friendly robber blocks stealing during the first turns only', () => {
     assert.equal(stolen || r.state.pending_robber_steal, expectSteal);
   }
 });
+
+test('randomize_order shuffles seats deterministically and everyone keeps their id', async () => {
+  const { configFromSettings, createGame, addPlayer, startGame } = await import('../../src/engine/index.js');
+  const cfg = configFromSettings({});
+  const firsts = new Set();
+  for (let seed = 1; seed <= 30; seed++) {
+    let s = createGame(cfg, { game_id: 'o', seed });
+    for (const n of ['A', 'B', 'C']) s = addPlayer(cfg, s, { name: n });
+    const a = startGame(cfg, s, { randomize_order: true }).state;
+    const b = startGame(cfg, s, { randomize_order: true }).state;
+    assert.deepEqual(a.player_order, b.player_order);
+    assert.deepEqual([...a.player_order].sort(), ['p1', 'p2', 'p3']);
+    firsts.add(a.player_order[0]);
+  }
+  assert.equal(firsts.size, 3, 'every seat gets to go first');
+});

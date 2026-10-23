@@ -96,12 +96,13 @@ test('lobby renders and a game starts with 3 players, a themed board, and setup 
 test('tapping a spot only previews it; Confirm places, Cancel backs out', async () => {
   const { app } = start();
   await settle(app);
+  const placed = $$('.piece').length;
   tap($$('.target-hit')[10]);
   assert.ok(button('Confirm') && button('Cancel'));
-  assert.equal($$('.piece').length, 1, 'ghost only');
+  assert.equal($$('.piece').length, placed + 1, 'ghost only');
   assert.equal(app.snap.view.legal_actions.length > 0, true);
   button('Cancel').click();
-  assert.equal($$('.piece').length, 0);
+  assert.equal($$('.piece').length, placed);
   tap($$('.target-hit')[10]);
   button('Confirm').click();
   await settle(app);

@@ -69,7 +69,7 @@ export function removePlayer(state, pid) {
 }
 
 /**
- * @param {{starting_resources?: number}} [opts] random resources dealt to each player at start
+ * @param {{starting_resources?: number, randomize_order?: boolean}} [opts] random resources dealt to each player at start
  * @returns {{state: any, events: any[]}}
  */
 export function startGame(cfg, state, opts = {}) {
@@ -78,6 +78,7 @@ export function startGame(cfg, state, opts = {}) {
     throw new Error(`Need at least ${cfg.setup_rules.min_players} players`);
   }
   const s = structuredClone(state);
+  if (opts.randomize_order) shuffle(s, s.player_order);
 
   const b = generateBoard(cfg, s);
   s.board.hexes = b.hexes;

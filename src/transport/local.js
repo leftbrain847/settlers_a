@@ -29,7 +29,7 @@ export class LocalTransport {
       s = addPlayer(this.cfg, s, { name: `Bot ${i + 1}`, id, is_ai: true });
       spec[id] = strategy;
     }
-    this.state = startGame(this.cfg, s, { starting_resources: START_RES[settings.starting_resources] ?? 0 }).state;
+    this.state = startGame(this.cfg, s, { starting_resources: START_RES[settings.starting_resources] ?? 0, randomize_order: true }).state;
     this.bots = createBots(spec);
     this.botRng = { rng: (this.seed ^ 0x9e3779b9) >>> 0 };
     this.clock = new TradeClock(this.cfg);
