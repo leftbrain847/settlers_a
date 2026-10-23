@@ -1,6 +1,6 @@
 import type { Action, Ctx, GameConfig, GameState, TradeOffer } from '../types.ts';
 import { addLog, bankRatio } from '../state.ts';
-import { SYSTEM, hasAll, validResMap } from './common.ts';
+import { SYSTEM, hasAll, pendingError, validResMap } from './common.ts';
 
 const isCurrent = (s: GameState, pid: string): boolean => pid === s.player_order[s.current_player_idx];
 
@@ -8,6 +8,8 @@ export function bankError(cfg: GameConfig, s: GameState, a: Action<'trade_bank'>
   if (s.phase !== 'playing') return 'Game is not in playing phase';
   if (!isCurrent(s, a.player_id)) return 'Not your turn';
   if (!s.dice_rolled) return 'Must roll dice first';
+  const blocked = pendingError(s);
+  if (blocked) return blocked;
   if (!cfg.trade_rules.bank_trading_enabled) return 'Bank trading is disabled';
   const { give_resource: give, want_resource: want } = a.params;
   if (!(give in cfg.resource_types) || !(want in cfg.resource_types)) return 'Must specify give and want resources';
@@ -34,12 +36,17 @@ export function offerError(cfg: GameConfig, s: GameState, a: Action<'trade_offer
   const { offering, requesting, counter_to } = a.params;
   const pid = a.player_id;
 
+  const counters = new Set(Object.values(s.trade_offers).flatMap((o) => o.counter_ids));
   if (isCurrent(s, pid)) {
     if (!s.dice_rolled) return 'Must roll dice first';
     if (counter_to) return 'Cannot counter your own offer';
+    const blocked = pendingError(s);
+    if (blocked) return blocked;
+    if (Object.values(s.trade_offers).some((o) => o.from_player === pid && !counters.has(o.id))) return 'You already have an open offer';
   } else {
     const parent = counter_to === undefined ? undefined : s.trade_offers[counter_to];
     if (!parent || parent.from_player !== s.player_order[s.current_player_idx]) return 'Not your turn';
+    if (parent.responses[pid] === 'countered') return 'You already countered this offer';
   }
   if (!validResMap(cfg, offering) || !validResMap(cfg, requesting)) return 'Must specify what you offer and request';
   if (!hasAll(s.players[pid], offering)) return 'Not enough resources to offer';
@@ -126,6 +133,12 @@ function finalize(ctx: Ctx, offer: TradeOffer, accepterId: string): void {
   for (const [r, n] of Object.entries(offer.requesting)) {
     accepter.resources[r] -= n;
     offerer.resources[r] = (offerer.resources[r] ?? 0) + n;
+  }
+  // A completed counter-offer settles the whole negotiation: close its parent and the sibling counters.
+  const parent = Object.values(s.trade_offers).find((o) => o.counter_ids.includes(offer.id));
+  for (const closing of parent ? [parent] : []) {
+    for (const cid of closing.counter_ids) delete s.trade_offers[cid];
+    delete s.trade_offers[closing.id];
   }
   for (const cid of offer.counter_ids) delete s.trade_offers[cid];
   delete s.trade_offers[offer.id];

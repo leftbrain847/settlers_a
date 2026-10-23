@@ -3,6 +3,14 @@ import type { BuildingType, GameConfig, GameState, Player, ResMap } from '../typ
 
 export const SYSTEM = '__system__';
 
+/** Nothing but the pending decision may happen while discards, a robber move/steal or a card choice is outstanding. */
+export function pendingError(s: GameState): string | null {
+  if (Object.keys(s.pending_discards).length) return 'Waiting for players to discard';
+  if (s.pending_robber_move || s.pending_robber_steal) return 'Must resolve robber first';
+  if (s.pending_action) return 'Must resolve pending action first';
+  return null;
+}
+
 export function validResMap(cfg: GameConfig, m: unknown): m is ResMap {
   if (!m || typeof m !== 'object' || Array.isArray(m)) return false;
   const entries = Object.entries(m as Record<string, unknown>);

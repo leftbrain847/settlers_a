@@ -1,15 +1,15 @@
 import type { Action, Ctx, GameConfig, GameState } from '../types.ts';
 import { topology } from '../topology.ts';
 import { addLog, roadType, settlementType } from '../state.ts';
-import { hasAll, placementError, tooCloseToBuilding } from './common.ts';
+import { hasAll, pendingError, placementError, tooCloseToBuilding } from './common.ts';
 
 export function buildError(cfg: GameConfig, s: GameState, a: Action<'build'>): string | null {
   if (s.phase === 'setup') return setupBuildError(cfg, s, a);
   if (s.phase !== 'playing') return 'Game is not in playing phase';
   if (a.player_id !== s.player_order[s.current_player_idx]) return 'Not your turn';
   if (!s.dice_rolled) return 'Must roll dice first';
-  if (Object.keys(s.pending_discards).length) return 'Waiting for players to discard';
-  if (s.pending_robber_move || s.pending_robber_steal) return 'Must resolve robber first';
+  const blocked = pendingError(s);
+  if (blocked) return blocked;
 
   const bt = cfg.building_types[a.params.building_type];
   if (!bt) return `Unknown building type: ${a.params.building_type}`;

@@ -108,3 +108,18 @@ export function playRandom(seed: number, { n = 3, maxSteps = 4000, settings = { 
 }
 
 export { SYSTEM };
+
+/** Fast-forward setup by always taking the first legal placement. */
+export function toPlaying(seed = 1, opts: { n?: number; settings?: Settings } = {}): { cfg: GameConfig; s: GameState } {
+  const g = newGame(seed, opts);
+  let s = g.state;
+  while (s.phase === 'setup') {
+    const pid = s.player_order[s.setup_player_idx]!;
+    const la = legalActions(g.cfg, s, pid)[0]!;
+    const { type, ...params } = la;
+    const r = reduce(g.cfg, s, mk(type, pid, params));
+    if (!r.ok) throw new Error(r.error);
+    s = r.state;
+  }
+  return { cfg: g.cfg, s };
+}

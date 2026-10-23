@@ -13,25 +13,24 @@ export function updateAchievements(ctx: Ctx): void {
   }
 }
 
-// Faithful to the Python oracle for now (ties go to the earlier seat; a holder is never stripped
-// when nobody qualifies). Rule fixes are a separate, tested pass after the oracle is green.
+// Standard rules: the holder keeps the card on a tie; a challenger must strictly beat them. If the holder
+// falls below the minimum (or is overtaken by a tie of two others) the card is returned to the bank.
 function award(ctx: Ctx, ach: Achievement, metric: (pid: string) => number): void {
   const { s, events } = ctx;
   const holder = s.player_order.find((pid) => s.players[pid]!.achievements.includes(ach.id)) ?? null;
-  let best: string | null = null;
-  let bestVal = ach.min_value - 1;
-  for (const pid of s.player_order) {
-    const v = metric(pid);
-    if (v > bestVal) { bestVal = v; best = pid; }
+  const values = new Map(s.player_order.map((pid) => [pid, metric(pid)] as const));
+  const top = Math.max(...values.values());
+  const contenders = top >= ach.min_value ? s.player_order.filter((pid) => values.get(pid) === top) : [];
+  const next = holder && contenders.includes(holder) ? holder : contenders.length === 1 ? contenders[0]! : null;
+  if (next === holder) return;
+  if (holder) {
+    const a = s.players[holder]!.achievements;
+    a.splice(a.indexOf(ach.id), 1);
+    events.push({ type: 'achievement_lost', player: holder, achievement: ach.id });
   }
-  if (best && best !== holder) {
-    if (holder) {
-      const a = s.players[holder]!.achievements;
-      a.splice(a.indexOf(ach.id), 1);
-      events.push({ type: 'achievement_lost', player: holder, achievement: ach.id });
-    }
-    s.players[best]!.achievements.push(ach.id);
-    events.push({ type: 'achievement_gained', player: best, achievement: ach.id, value: bestVal });
+  if (next) {
+    s.players[next]!.achievements.push(ach.id);
+    events.push({ type: 'achievement_gained', player: next, achievement: ach.id, value: top });
   }
 }
 

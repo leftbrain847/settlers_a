@@ -5,7 +5,6 @@
   "scripts": {
     "test": "node --test \"tests/unit/*.test.ts\"",
     "typecheck": "tsc --noEmit",
-    "oracle": "node tests/oracle/gen_traces.mjs .oracle-traces 30 && python3 tests/oracle/replay.py .oracle-traces",
     "build": "node scripts/build.mjs"
   },
   "devDependencies": {

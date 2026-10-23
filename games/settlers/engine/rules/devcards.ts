@@ -1,6 +1,6 @@
 import type { Action, Ctx, GameConfig, GameState } from '../types.ts';
 import { addLog, roadType } from '../state.ts';
-import { edgeConnects, hasAll, sumVals, validResMap } from './common.ts';
+import { edgeConnects, hasAll, pendingError, sumVals, validResMap } from './common.ts';
 
 const isCurrent = (s: GameState, pid: string): boolean => pid === s.player_order[s.current_player_idx];
 
@@ -8,6 +8,8 @@ export function buyDevError(cfg: GameConfig, s: GameState, a: Action<'buy_dev_ca
   if (s.phase !== 'playing') return 'Game is not in playing phase';
   if (!isCurrent(s, a.player_id)) return 'Not your turn';
   if (!s.dice_rolled) return 'Must roll dice first';
+  const blocked = pendingError(s);
+  if (blocked) return blocked;
   if (!s.dev_card_deck.length) return 'No development cards left';
   const cost = cfg.building_types.dev_card?.cost;
   if (cost && !hasAll(s.players[a.player_id], cost)) return 'Not enough resources';
@@ -30,7 +32,9 @@ export function applyBuyDev(ctx: Ctx, a: Action<'buy_dev_card'>): void {
 export function playDevError(cfg: GameConfig, s: GameState, a: Action<'play_dev_card'>): string | null {
   if (s.phase !== 'playing') return 'Game is not in playing phase';
   if (!isCurrent(s, a.player_id)) return 'Not your turn';
-  const p = s.players[a.player_id];
+  const blocked = pendingError(s);
+  if (blocked) return blocked;
+  const p = s.players[a.player_id]!;
   const card = a.params.card_type;
   if (!p.dev_cards.includes(card)) return "You don't have that card";
   const dc = cfg.dev_card_types[card];
