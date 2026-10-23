@@ -12,15 +12,16 @@ export function chip(cfg, r, n, cls = '') {
 export const costChips = (cfg, cost) => h('span.costs', Object.entries(cost).map(([r, n]) => chip(cfg, r, n)));
 
 function stepper(cfg, r, value, max, onChange) {
-  return h('div.stepper', { style: { '--c': `var(--r-${r})` } },
-    h('span.stepper-name', resName(cfg, r)),
-    h('button.step', { disabled: value <= 0, onclick: () => onChange(value - 1), 'aria-label': `less ${resName(cfg, r)}` }, '−'),
-    h('span.step-val', value),
-    h('button.step', { disabled: value >= max, onclick: () => onChange(value + 1), 'aria-label': `more ${resName(cfg, r)}` }, '+'));
+  return h('div.rcell' + (value ? '.has' : ''), { style: { '--c': `var(--r-${r})` } },
+    h('span.rname', resName(cfg, r)),
+    h('span.rval', value),
+    h('div.pm',
+      h('button.step', { disabled: value <= 0, onclick: () => onChange(value - 1), 'aria-label': `less ${resName(cfg, r)}` }, '\u2212'),
+      h('button.step', { disabled: value >= max, onclick: () => onChange(value + 1), 'aria-label': `more ${resName(cfg, r)}` }, '+')));
 }
 
 function steppers(cfg, draft, kinds, caps) {
-  return h('div.steppers', kinds.map((r) => stepper(cfg, r, draft[r] ?? 0, caps[r] ?? 0, (v) => { if (v > 0) draft[r] = v; else delete draft[r]; ctx.rerender(); })));
+  return h('div.rgrid', kinds.map((r) => stepper(cfg, r, draft[r] ?? 0, caps[r] ?? 0, (v) => { if (v > 0) draft[r] = v; else delete draft[r]; ctx.rerender(); })));
 }
 
 // ctx is injected per render so sheet builders can stay plain functions.
@@ -62,7 +63,7 @@ export function yopSheet({ view, cfg, ui, send }) {
   const d = (ui.draft.yop ??= {});
   const have = sum(d);
   return h('div', h('p.dim', `Year of Plenty: take ${need} resources from the bank (${have}/${need}).`),
-    h('div.steppers', Object.keys(cfg.resource_types).map((r) => stepper(cfg, r, d[r] ?? 0, need - (have - (d[r] ?? 0)), (v) => { if (v > 0) d[r] = v; else delete d[r]; ctx.rerender(); }))),
+    h('div.rgrid', Object.keys(cfg.resource_types).map((r) => stepper(cfg, r, d[r] ?? 0, need - (have - (d[r] ?? 0)), (v) => { if (v > 0) d[r] = v; else delete d[r]; ctx.rerender(); }))),
     btn('Take resources', () => { send('dev_card_action', { resources: { ...d } }); ui.draft.yop = {}; }, { primary: true, disabled: have !== need }));
 }
 
@@ -126,7 +127,7 @@ export function tradeSheet({ view, cfg, ui, send }) {
   const canSend = sum(t.give) > 0 && sum(t.want) > 0;
   const cap9 = Object.fromEntries(kinds.map((r) => [r, 9]));
   const others = view.player_order.filter((p) => p !== view.me).map((p) => view.players[p].name).join(', ');
-  return h('div', tabs, h('p.dim.small', `Offer to ${others}. Bots answer instantly; people get ${cfg.trade_rules.human_response_timer}s.`),
+  return h('div', tabs, h('p.dim.small', `To ${others}. Bots answer at once; people get ${cfg.trade_rules.human_response_timer}s.`),
     h('h4', 'You give'), steppers(cfg, t.give, kinds, me.resources),
     h('h4', 'You want'), steppers(cfg, t.want, kinds, cap9),
     btn('Send offer', () => { send('trade_offer', { offering: { ...t.give }, requesting: { ...t.want } }); ui.draft.trade = { give: {}, want: {} }; ui.sheet = null; }, { primary: true, disabled: !canSend }));
