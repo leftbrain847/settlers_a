@@ -4,6 +4,7 @@ import { topology } from '../../engine/topology.ts';
 import { place } from './batch.ts';
 import { hexTopGeometry, hexXZ, noise2, rngFor, SQ3 } from './geometry.ts';
 import { Kit, scaleSat, tint } from './kit.ts';
+import { Pieces } from './pieces.ts';
 import { DRESS, hexNorm } from './props.ts';
 import type { SheepRef } from './props.ts';
 import type { LightPreset, Palette, StylePreset } from './style.ts';
@@ -22,6 +23,8 @@ export interface Built {
   fit: THREE.Vector3[];
   radius: number;
   tick(t: number): void;
+  /** settlements, roads, robber, tap targets: redrawn as the game changes */
+  pieces: Pieces;
   hexPoint(id: number): THREE.Vector3;
   interPoint(id: number): THREE.Vector3;
   edgePoint(id: number): THREE.Vector3;
@@ -247,62 +250,9 @@ export function buildBoard(o: BuildOpts): Built {
   };
   const hexPoint = (id: number): THREE.Vector3 => new THREE.Vector3(tileXZ[id]?.x ?? 0, tileTop[id] ?? 0.15, tileXZ[id]?.z ?? 0);
 
-  const idx = (pid: string): number => Math.max(0, view.player_order.indexOf(pid));
-  const playerColor = (pid: string): THREE.Color => scaleSat(pal.players[idx(pid) % pal.players.length]!, 1);
-  const pieceMat = kit.std('piece', { rough: 0.55 });
-  const roofMat = kit.std('roof', { rough: 0.7 });
-  const windowMat = kit.material(`window-${light.windows}`, () => new THREE.MeshBasicMaterial({ color: light.windows > 0.3 ? '#ffd98a' : '#31465a' }));
-  const bodies = kit.batch('house', 'cyl4', pieceMat), roofs = kit.batch('houseroof', 'pyramid', roofMat), towers = kit.batch('tower', 'cyl4', pieceMat);
-  const windows = kit.batch('windows', 'box', windowMat, { castShadow: false });
-  const smokeMat = kit.material('smoke', () => new THREE.MeshBasicMaterial({ color: light.windows > 0.3 ? '#8d97ad' : '#f1f1f1', transparent: true, opacity: 0.5, depthWrite: false }));
-  const smoke = kit.batch('smoke', 'sphere', smokeMat, { castShadow: false });
-  const smokers: { index: number; x: number; y: number; z: number; phase: number }[] = [];
-
-  for (const [iid, b] of Object.entries(view.board.buildings.i)) {
-    const p = interPoint(Number(iid));
-    const col = playerColor(b.player), yaw = (Number(iid) % 4) * 0.4;
-    const k = (style.propScale > 1.2 ? 1.2 : 1) * 1.55;
-    if (!style.flat) kit.batch('blob', 'blob', kit.blob(0.5), { castShadow: false }).add(place(p.x, p.y + 0.008, p.z, (b.type === 'city' ? 0.34 : 0.22) * k, 1, (b.type === 'city' ? 0.26 : 0.22) * k));
-    if (b.type === 'city') {
-      bodies.add(place(p.x - 0.05 * k, p.y, p.z, 0.3 * k, 0.17 * k, 0.2 * k, yaw), col);
-      roofs.add(place(p.x - 0.05 * k, p.y + 0.17 * k, p.z, 0.32 * k, 0.12 * k, 0.24 * k, yaw), tint(col, 0, 0, -0.18));
-      towers.add(place(p.x + 0.12 * k, p.y, p.z, 0.13 * k, 0.3 * k, 0.13 * k, yaw), tint(col, 0, 0, 0.04));
-      roofs.add(place(p.x + 0.12 * k, p.y + 0.3 * k, p.z, 0.16 * k, 0.12 * k, 0.16 * k, yaw), tint(col, 0, 0, -0.18));
-      windows.add(place(p.x - 0.05 * k, p.y + 0.07 * k, p.z + 0.1 * k, 0.05 * k, 0.05 * k, 0.012, yaw));
-      windows.add(place(p.x + 0.12 * k, p.y + 0.18 * k, p.z + 0.067 * k, 0.04 * k, 0.05 * k, 0.012, yaw));
-      smokers.push({ index: smoke.add(place(p.x, p.y + 0.45, p.z, 0.05, 0.05, 0.05)), x: p.x + 0.12 * k, y: p.y + 0.46 * k, z: p.z, phase: 0 });
-    } else {
-      bodies.add(place(p.x, p.y, p.z, 0.2 * k, 0.12 * k, 0.2 * k, yaw), col);
-      roofs.add(place(p.x, p.y + 0.12 * k, p.z, 0.25 * k, 0.12 * k, 0.25 * k, yaw), tint(col, 0, 0, -0.18));
-      windows.add(place(p.x, p.y + 0.05 * k, p.z + 0.101 * k, 0.05 * k, 0.045 * k, 0.012, yaw));
-      smokers.push({ index: smoke.add(place(p.x, p.y + 0.3, p.z, 0.04, 0.04, 0.04)), x: p.x + 0.05 * k, y: p.y + 0.3 * k, z: p.z, phase: 0 });
-    }
-  }
-  const roadMat = kit.std('road', { rough: 0.7 });
-  const roads = kit.batch('road', 'box', roadMat);
-  for (const [eid, b] of Object.entries(view.board.buildings.e)) {
-    const e = topo.edges[Number(eid)]!;
-    const a = interPoint(e.a), c = interPoint(e.b);
-    const len = Math.hypot(c.x - a.x, c.z - a.z) * 0.8;
-    const yaw = -Math.atan2(c.z - a.z, c.x - a.x);
-    roads.add(place((a.x + c.x) / 2, Math.max(a.y, c.y) - 0.005, (a.z + c.z) / 2, len, 0.08, 0.15, yaw), playerColor(b.player));
-  }
-
-  // robber
-  if (view.board.robber_hex !== null) {
-    const hp = hexPoint(view.board.robber_hex);
-    const hasChip = hexById.get(view.board.robber_hex)?.number_token !== null;
-    const g = new THREE.Group();
-    const mat = new THREE.MeshStandardMaterial({ color: '#1c1d22', roughness: 0.45, flatShading: style.flat });
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.05, 12), mat);
-    const body = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.34, 12), mat); body.position.y = 0.2;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 10), mat); head.position.y = 0.43;
-    base.castShadow = body.castShadow = head.castShadow = style.shadows;
-    g.add(base, body, head);
-    g.position.set(hp.x + (hasChip ? 0.33 : 0), hp.y, hp.z + (hasChip ? 0.2 : 0));
-    scene.add(g);
-    disposables.push(mat, base.geometry as THREE.BufferGeometry, body.geometry as THREE.BufferGeometry, head.geometry as THREE.BufferGeometry);
-  }
+  const pieces = new Pieces({ kit, style, light, pal, topo, scene, interPoint, edgePoint, hexPoint, hasChip: (id) => hexById.get(id)?.number_token !== null });
+  disposables.push({ dispose: () => pieces.dispose() });
+  pieces.set(view, {});
 
   // ---------------------------------------------------------------- ports
   const boats = new THREE.Group();
@@ -418,8 +368,6 @@ export function buildBoard(o: BuildOpts): Built {
   for (const b of kit.allBatches()) { const m = b.build(); if (m) scene.add(m); }
 
   // ---------------------------------------------------------------- motion
-  const m4 = new THREE.Matrix4();
-  const smokeBatch = smoke;
   const tick = (t: number): void => {
     kit.wind.value = t; seaUniform.value = t;
     for (const s of sheep) {
@@ -427,22 +375,18 @@ export function buildBoard(o: BuildOpts): Built {
       const x = s.home.x + Math.cos(a) * s.radius, z = s.home.z + Math.sin(a) * s.radius;
       s.batch.set(s.index, place(x, s.home.y + Math.abs(Math.sin(t * 2 + s.phase)) * 0.006, z, s.scale, s.scale, s.scale, -a - Math.PI / 2));
     }
+    pieces.tick(t);
     for (const o of bobbers) { o.g.position.y = o.y + Math.sin(t * 1.3 + o.phase) * 0.018; o.g.rotation.z = Math.sin(t * 1.1 + o.phase) * 0.05; }
     for (const b of gulls) {
       const a = t * b.speed + b.phase;
       b.m.position.set(Math.cos(a) * b.r, b.h + Math.sin(t * 0.8 + b.phase) * 0.08, Math.sin(a) * b.r);
       b.m.rotation.set(0, -a, Math.sin(t * 5 + b.phase) * 0.3); // banked into the circle, wings flapping
     }
-    smokers.forEach((p, i) => {
-      const u = ((t * 0.35 + i * 0.37) % 1);
-      m4.copy(place(p.x + Math.sin(t + i) * 0.03 + u * 0.12, p.y + u * 0.32, p.z, 0.03 + u * 0.07, 0.03 + u * 0.07, 0.03 + u * 0.07));
-      smokeBatch.set(p.index, m4);
-    });
   };
   tick(0);
 
   return {
-    scene, sun, chips, fit, radius: maxR + 1.5, tick, hexPoint, interPoint, edgePoint,
+    scene, sun, chips, fit, pieces, radius: maxR + 1.5, tick, hexPoint, interPoint, edgePoint,
     dispose: () => { for (const d of disposables) d.dispose(); },
   };
 }

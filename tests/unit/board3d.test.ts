@@ -92,3 +92,38 @@ test('animation moves sheep and smoke, and nothing else drifts', () => {
   const changed = a.filter((x, i) => x !== c[i]).length;
   assert.ok(changed >= 1 && changed <= 3, `${changed} instanced meshes moved (expected sheep and smoke only)`);
 });
+
+test('tap targets: a ray through each highlighted spot hits exactly that spot', () => {
+  const b = build('realistic');
+  const camera = new THREE.PerspectiveCamera(30, 0.6, 0.1, 400);
+  const target = new THREE.Vector3(0, 0.2, 0);
+  fitCamera(camera, b.fit, target);
+  const ids = { i: [3, 10, 20], e: [5, 12], h: [4] };
+  b.pieces.set(view, { i: new Set(ids.i), e: new Set(ids.e), h: new Set(ids.h) });
+  b.scene.updateMatrixWorld(true);
+  const ray = new THREE.Raycaster();
+  const pts = { i: b.interPoint, e: b.edgePoint, h: b.hexPoint } as const;
+  for (const kind of ['i', 'e', 'h'] as const) for (const id of ids[kind]) {
+    const p = pts[kind](id).clone().project(camera);
+    ray.setFromCamera(new THREE.Vector2(p.x, p.y), camera);
+    const hit = ray.intersectObjects(b.pieces.hits, false)[0];
+    assert.ok(hit, `${kind}${id}: nothing hit`);
+    assert.deepEqual(hit.object.userData, { kind, id });
+  }
+  b.pieces.set(view, {});
+  assert.equal(b.pieces.hits.length, 0, 'targets vanish when nothing is highlighted');
+});
+
+test('pieces: new buildings pop in, then settle at full size', () => {
+  const b = build('realistic');
+  const iid = Number(Object.keys(view.board.buildings.i)[0]);
+  const t0 = 1_000_000;
+  b.pieces.set(view, { fresh: { i: new Map([[iid, t0]]), e: new Map() } }, t0 + 40);
+  const scales: number[] = [];
+  b.scene.traverse((o) => { if (o.type === 'Group' && o.scale.x < 0.99) scales.push(o.scale.x); });
+  assert.ok(scales.length >= 1, 'a fresh piece starts small');
+  b.pieces.tick(0, t0 + 1000);
+  const after: number[] = [];
+  b.scene.traverse((o) => { if (o.type === 'Group' && o.scale.x < 0.99) after.push(o.scale.x); });
+  assert.equal(after.length, 0);
+});

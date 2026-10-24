@@ -3,7 +3,7 @@ import { icon, resIcon } from './icons.ts';
 import { topology } from '../engine/topology.ts';
 import type { Topology } from '../engine/topology.ts';
 import type { GameConfig, GameView } from '../engine/types.ts';
-import type { BoardTargets, Kind } from './ui-types.ts';
+import type { BoardRenderer, BoardTargets, Kind } from './ui-types.ts';
 
 const S = 40; // world units per hex edge
 const SQ3 = Math.sqrt(3);
@@ -33,8 +33,10 @@ function mountainScene(c: Pt, clipId: string): SVGElement {
  * Pan = one finger drag, zoom = pinch or wheel. Hit targets are generous (~36px) and only exist
  * for currently legal spots, so a stray tap can never place anything.
  */
-export class BoardView {
+export class BoardView implements BoardRenderer {
   svg: SVGSVGElement;
+  get el(): SVGSVGElement { return this.svg; }
+  destroy(): void { /* nothing to release */ }
   onTap: (t: BoardTap) => void;
   vb: ViewBox | null;
   full: ViewBox | null;

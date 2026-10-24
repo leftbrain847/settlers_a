@@ -46,3 +46,12 @@ export const isLegal = <T extends LegalAction['type']>(t: T) => (a: LegalAction)
 
 /** Own-seat hands are always present in a view; this makes the optional field safe to read. */
 export const handOf = (p: PlayerView): ResMap => p.resources ?? {};
+
+/** Either board renderer (SVG or 3D): draws a view, reports taps through its constructor callback, and maps board spots to screen points. */
+export interface BoardRenderer {
+  el: HTMLElement | SVGElement;
+  update(view: GameView, cfg: GameConfig, targets?: BoardTargets): void;
+  clientPoint(kind: Kind, id: number): { x: number; y: number } | null;
+  resetZoom(): void;
+  destroy(): void;
+}

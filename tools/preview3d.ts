@@ -21,6 +21,7 @@ const { cfg, view } = sampleGame();
 for (const styleId of styleArg.split(',') as StyleId[]) for (const lightId of lightArg.split(',') as LightId[]) {
   const t0 = Date.now();
   board.setBoard(view, cfg, STYLES[styleId], LIGHTS[lightId], paletteOf(palArg as PaletteId));
+  if (process.env.HILITE) board.built?.pieces.set(view, { i: new Set([5, 9, 14, 22]), e: new Set([8, 15]), h: new Set([2, 7]), ghost: { kind: 'i', id: 30, type: 'city', player: view.me } });
   if (focusArg !== '' && board.built) { board.target.copy(board.built.hexPoint(Number(focusArg))); }
   board.setZoom(Number(zoomArg));
   board.frame(Number(tArg));

@@ -1,6 +1,10 @@
 import { h, sv, mount, inputOf, selectOf } from './dom.ts';
 import { applyTheme, THEMES } from './theme.ts';
 import { BoardView } from './board-svg.ts';
+import { Board3DView, webglAvailable } from './board3d/view.ts';
+import type { Look } from './board3d/view.ts';
+import { PALETTE_IDS } from './board3d/style.ts';
+import type { PaletteId } from './board3d/style.ts';
 import type { BoardTap } from './board-svg.ts';
 import { LocalTransport, SPEEDS } from '../../../client-sdk/local.ts';
 import { describeEvent } from './format.ts';
@@ -15,15 +19,16 @@ import type { OnlineEnv } from './online.ts';
 import type { SettingValue } from './settings.ts';
 import * as sheets from './sheets.ts';
 import { handOf, isLegal } from './ui-types.ts';
-import type { BoardTargets, Kind, Mode, Move, SheetCtx, SheetName, UiState } from './ui-types.ts';
+import type { BoardRenderer, BoardTargets, Kind, Mode, Move, SheetCtx, SheetName, UiState } from './ui-types.ts';
 import type { ActionParams, ActionType, GameConfig, GameView, LegalAction, TradeOffer } from '../engine/types.ts';
 import type { KeyValueStore, SaveData, Snapshot, Transport, TransportOptions } from '../../../client-sdk/transport.ts';
 
 const SAVE_KEY = 'settlers.save.v1';
 const PREF_KEY = 'settlers.prefs.v1';
 
+type BoardLook = 'realistic' | 'civ' | 'tabletop' | 'flat';
 interface Prefs {
-  theme: string; name: string; bots: number; watch: boolean; speed: number;
+  theme: string; look: BoardLook; name: string; bots: number; watch: boolean; speed: number;
   values: Record<string, SettingValue>;
 }
 type Sleep = (ms: number) => Promise<void>;
@@ -31,7 +36,7 @@ type MakeTransport = (o: TransportOptions) => Transport;
 interface Dom {
   fx: HTMLElement; bank: HTMLElement; live: HTMLElement;
   status: HTMLElement; dice: HTMLElement; watch: HTMLElement; speed: HTMLElement; menu: HTMLElement;
-  players: HTMLElement; banner: HTMLElement; svg: SVGSVGElement; hand: HTMLElement; actions: HTMLElement;
+  players: HTMLElement; banner: HTMLElement; board: HTMLElement | SVGElement; hand: HTMLElement; actions: HTMLElement;
   toasts: HTMLElement; sheetHost: HTMLElement; overlay: HTMLElement;
 }
 type SheetSpec =
@@ -77,7 +82,7 @@ export class App {
   snap: Snapshot | null;
   t: Transport | null;
   dom!: Dom;
-  board!: BoardView;
+  board!: BoardRenderer;
   mode: Mode | null = null;
   declining = false;
   fx: Fx | null = null;
@@ -88,7 +93,7 @@ export class App {
   constructor(root: HTMLElement, storage: KeyValueStore | null, makeTransport: MakeTransport, sleep: Sleep | undefined, onlineEnv: OnlineEnv | null = null) {
     this.online = onlineEnv ? new OnlineController(this, onlineEnv) : null;
     this.root = root; this.storage = storage; this.makeTransport = makeTransport; this.sleep = sleep;
-    this.prefs = { theme: 'ocean', name: 'You', bots: 2, watch: false, speed: 1, values: defaults(), ...(readJson<Partial<Prefs>>(storage, PREF_KEY) ?? {}) };
+    this.prefs = { theme: 'natural', look: 'realistic', name: 'You', bots: 2, watch: false, speed: 1, values: defaults(), ...(readJson<Partial<Prefs>>(storage, PREF_KEY) ?? {}) };
     applyTheme(this.prefs.theme);
     this.ui = emptyUi();
     this.snap = null;
@@ -101,12 +106,25 @@ export class App {
     return this.t;
   }
 
+  /** The 3D board's look follows the color theme: the Night theme plays after dark. */
+  look3d(): Look {
+    const style = this.prefs.look === 'flat' ? 'realistic' : this.prefs.look;
+    const palette = (PALETTE_IDS as string[]).includes(this.prefs.theme) ? (this.prefs.theme as PaletteId) : 'natural';
+    return { style, palette, light: this.prefs.theme === 'night' ? 'night' : 'day' };
+  }
+
+  lookField(onChange: (v: BoardLook) => void, id?: string): HTMLElement {
+    const opts: [BoardLook, string][] = [['realistic', '3D Realistic'], ['civ', '3D Civ'], ['tabletop', '3D Tabletop'], ['flat', 'Flat (lightweight)']];
+    return h('label.field', h('span', 'Board view'), h(id ? `select#${id}` : 'select', { onchange: (e) => onChange(selectOf(e).value as BoardLook) }, opts.map(([k, t]) => h('option', { value: k, selected: k === this.prefs.look }, t))));
+  }
+
   savePrefs(): void { writeJson(this.storage, PREF_KEY, this.prefs); }
 
   // ------------------------------------------------------------------ lobby
   showLobby(): void {
     this.online?.reset();
     this.t?.destroy(); this.t = null; this.snap = null;
+    this.board?.destroy();
     const p = this.prefs;
     const saved = readJson<SaveData>(this.storage, SAVE_KEY);
     const fieldEls = settingsFields(p.values);
@@ -118,6 +136,7 @@ export class App {
         h('label.field', h('span', 'Your name'), h('input#name', { type: 'text', value: p.name, maxlength: 16, onchange: (e) => { p.name = inputOf(e).value.trim() || 'You'; } })),
         h('label.field', h('span', 'Bot opponents'), h('select#bots', { onchange: (e) => { p.bots = Number(selectOf(e).value); } }, [1, 2, 3].map((n) => h('option', { value: n, selected: n === p.bots }, `${n} bot${n > 1 ? 's' : ''}`)))),
         h('label.field.check', h('input#watch', { type: 'checkbox', checked: !!p.watch, onchange: (e) => { p.watch = inputOf(e).checked; } }), h('span', 'Watch only: a bot plays my seat too')),
+        this.lookField((v) => { p.look = v; }, 'look'),
         h('label.field', h('span', 'Color theme'), h('select#theme', { onchange: (e) => { p.theme = applyTheme(selectOf(e).value); } }, Object.entries(THEMES).map(([k, t]) => h('option', { value: k, selected: k === p.theme }, t.label)))),
         h('details.settings', h('summary', 'Game settings'), ...fieldEls,
           h('button.btn.small', { type: 'button', onclick: () => { p.values = defaults(); this.savePrefs(); this.showLobby(); } }, 'Reset to defaults')),
@@ -156,20 +175,29 @@ export class App {
 
   // ------------------------------------------------------------------ game dom
   buildGameDom(): void {
-    const svg = sv<SVGSVGElement>('svg#board', { xmlns: 'http://www.w3.org/2000/svg', preserveAspectRatio: 'xMidYMid meet' });
+    this.board?.destroy();
+    const flatSurface = (): SVGSVGElement => sv<SVGSVGElement>('svg#board', { xmlns: 'http://www.w3.org/2000/svg', preserveAspectRatio: 'xMidYMid meet' });
+    const onTap = (t: BoardTap): void => this.onBoardTap(t);
+    let surface: HTMLElement | SVGElement;
+    if (this.prefs.look !== 'flat' && webglAvailable()) {
+      surface = h<HTMLCanvasElement>('canvas#board');
+      try { this.board = new Board3DView(surface as HTMLCanvasElement, { onTap, look: () => this.look3d() }); } catch { surface = flatSurface(); this.board = new BoardView(surface as SVGSVGElement, { onTap }); }
+    } else {
+      surface = flatSurface();
+      this.board = new BoardView(surface as SVGSVGElement, { onTap });
+    }
     this.dom = {
       status: h('div.status'), dice: h('div.dice'), watch: h('button.pill#watch', { onclick: () => this.tr.setAutopilot(!this.snap?.autopilot) }), speed: h('button.pill#speed', { 'aria-label': 'Playback speed', onclick: () => this.cycleSpeed() }), menu: h('button.icon#menu', { 'aria-label': 'Menu', onclick: () => this.openSheet('menu') }, '☰'),
-      players: h('div.players'), banner: h('div.banner'), svg, hand: h('div.hand'), actions: h('div.actions'),
+      players: h('div.players'), banner: h('div.banner'), board: surface, hand: h('div.hand'), actions: h('div.actions'),
       toasts: h('div.toasts'), sheetHost: h('div.sheet-host'), overlay: h('div.overlay'),
       fx: h('div.fx'), bank: h('div.bank', { 'aria-label': 'Bank and development card deck' }), live: h('div.sr', { 'aria-live': 'polite' }),
     };
     this.fx = new Fx(this.dom.fx);
-    this.board = new BoardView(svg, { onTap: (t) => this.onBoardTap(t) });
     mount(this.root,
       h('div.game',
         h('div.top', this.dom.status, this.dom.dice, this.dom.watch, this.dom.speed, this.dom.menu),
         this.dom.players,
-        h('div.boardwrap', svg, this.dom.bank, this.dom.banner, this.dom.toasts),
+        h('div.boardwrap', surface, this.dom.bank, this.dom.banner, this.dom.toasts),
         h('div.dock', this.dom.hand, this.dom.actions),
         this.dom.sheetHost, this.dom.overlay, this.dom.fx, this.dom.live));
   }
@@ -233,7 +261,7 @@ export class App {
     return {
       seat: (id, res) => centre(id === me && res ? this.dom.hand.querySelector(`[data-res="${res}"]`) : id === me ? this.dom.hand : this.dom.players.querySelector(`[data-seat="${id}"]`)),
       bank: () => centre(this.dom.bank),
-      center: () => centre(this.dom.svg),
+      center: () => centre(this.dom.board),
       board: (kind, id) => this.board.clientPoint(kind, id),
       bump: (id) => {
         const el = id === me ? this.dom.hand : this.dom.players.querySelector(`[data-seat="${id}"]`);
@@ -459,7 +487,8 @@ export class App {
 
   menuSheet(v: GameView, cfg: GameConfig): HTMLElement {
     return h('div.list',
-      h('label.field', h('span', 'Color theme'), h('select', { onchange: (e) => { this.prefs.theme = applyTheme(selectOf(e).value); this.savePrefs(); } }, Object.entries(THEMES).map(([k, t]) => h('option', { value: k, selected: k === this.prefs.theme }, t.label)))),
+      h('label.field', h('span', 'Color theme'), h('select', { onchange: (e) => { this.prefs.theme = applyTheme(selectOf(e).value); this.savePrefs(); this.render(); } }, Object.entries(THEMES).map(([k, t]) => h('option', { value: k, selected: k === this.prefs.theme }, t.label)))),
+      this.lookField((v) => { this.prefs.look = v; this.savePrefs(); this.buildGameDom(); this.ui.sheet = null; this.render(); }),
       h('button.btn', { onclick: () => { this.ui.sheet = 'log'; this.render(); } }, 'Game log'),
       h('button.btn', { onclick: () => { this.board.resetZoom(); this.ui.sheet = null; this.render(); } }, 'Reset board zoom'),
       h('p.dim.small', `${cfg.name} · ${cfg.win_conditions[0]?.params.threshold} VP to win · ${v.board.rings} rings`),

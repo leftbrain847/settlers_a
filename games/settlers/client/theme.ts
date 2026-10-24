@@ -13,6 +13,13 @@ const chrome: Record<string, string> = {
 };
 
 export const THEMES: Record<string, Theme> = {
+  natural: {
+    label: 'Natural',
+    vars: { ...chrome, '--accent': '#d9822b', '--accent2': '#e0b840', '--good': '#79b04e', '--sea': '#2f86b3', '--sea2': '#154c78' },
+    terrain: { hills: '#b8643f', forest: '#557f3c', mountains: '#8c9196', fields: '#cfae52', pasture: '#8fbf5e', desert: '#e3cb8f' },
+    players: ['#d94b4b', '#3b7dd8', '#f2f2f2', '#f0a030', '#8e5bd6', '#2fb58a'],
+    resources: { clay: '#b8643f', wood: '#557f3c', rock: '#8c9196', wheat: '#cfae52', sheep: '#8fbf5e' },
+  },
   ocean: {
     label: 'Sand',
     vars: { ...chrome, '--accent': '#00b4d8', '--accent2': '#f4a261', '--good': '#06d6a0', '--sea': '#5bb8d4', '--sea2': '#3aa8c5' },

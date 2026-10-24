@@ -167,10 +167,28 @@ export class Board3D {
     if (fog && this.fogK) { fog.near = this.fitDist * this.zoom * this.fogK[0]; fog.far = this.fitDist * this.zoom * this.fogK[1]; }
   }
 
+  /** Slide the view by a screen-space drag (pixels), keeping the board in reach. */
+  panBy(dx: number, dy: number): void {
+    const h = this.opts.height || 1;
+    const per = (2 * this.fitDist * this.zoom * Math.tan((FOV * Math.PI) / 360)) / h;
+    this.target.x -= dx * per;
+    this.target.z -= (dy * per) / Math.sin(ELEVATION);
+    const lim = (this.built?.radius ?? 6) * 0.85, d = Math.hypot(this.target.x, this.target.z);
+    if (d > lim) { this.target.x *= lim / d; this.target.z *= lim / d; }
+    this.goal.copy(this.target);
+    this.applyZoom();
+  }
+
+  /** Keep drawing at full rate for a moment (touch, new pieces); idle boards drop to 30 fps. */
+  boost(ms = 1500): void { this.boostUntil = performance.now() + ms; }
+  private boostUntil = 0;
+  private lastDraw = 0;
+
   setZoom(z: number): void { this.zoom = Math.min(1.15, Math.max(0.25, z)); this.goalZoom = this.zoom; this.applyZoom(); }
 
   resize(w: number, h: number, pixelRatio = this.opts.pixelRatio): void {
     this.renderer.setPixelRatio(pixelRatio);
+    this.opts.width = w; this.opts.height = h;
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -203,11 +221,15 @@ export class Board3D {
 
   start(): void {
     this.t0 = performance.now();
-    const loop = (): void => { this.frame((performance.now() - this.t0) / 1000); this.raf = requestAnimationFrame(loop); };
+    const loop = (): void => {
+      const now = performance.now();
+      if (now < this.boostUntil || now - this.lastDraw >= 30) { this.lastDraw = now; this.frame((now - this.t0) / 1000); }
+      this.raf = requestAnimationFrame(loop);
+    };
     this.raf = requestAnimationFrame(loop);
   }
 
   stop(): void { cancelAnimationFrame(this.raf); }
 
-  dispose(): void { this.stop(); this.post?.target.dispose(); this.built?.dispose(); this.renderer.dispose(); }
+  dispose(): void { this.stop(); this.renderer.forceContextLoss(); this.post?.target.dispose(); this.built?.dispose(); this.renderer.dispose(); }
 }
